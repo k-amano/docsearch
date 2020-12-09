@@ -40,6 +40,17 @@ namespace Arx.DocSearch.Util
 		/// <param name="message">エラーメッセージ文。</param>
 		public void WriteErrorLog(string pathname, string message)
 		{
+			WriteErrorLog(pathname, message, true);
+		}
+
+		/// <summary>
+		/// エラーログを記録します。
+		/// </summary>
+		/// <param name="pathname">ログを格納するディレクトリ。</param>
+		/// <param name="message">エラーメッセージ文。</param>
+		/// <param name="hasTimeStamp">日時記録の有無。</param>
+		public void WriteErrorLog(string pathname, string message, bool hasTimeStamp)
+		{
 			if (!Directory.Exists(pathname)) Directory.CreateDirectory(pathname);
 			string filename = Path.Combine(pathname,
 			 "error" + DateTime.Now.ToString("yyyyMMdd") + ".log");
@@ -52,7 +63,14 @@ namespace Arx.DocSearch.Util
 				using (StreamWriter writer = new StreamWriter(fs))
 				{
 					// 1 行書き込み
-					writer.WriteLine(string.Format("[{0}] {1}", DateTime.Now, message));
+					if (hasTimeStamp)
+					{
+						writer.WriteLine(string.Format("[{0}] {1}", DateTime.Now, message));
+					}
+					else
+					{
+						writer.WriteLine(message);
+					}
 				}
 			}
 			finally

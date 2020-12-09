@@ -31,6 +31,7 @@ namespace Arx.DocSearch.Client
 			this.docs = new List<string>();
 			this.lines = new List<string>();
 			this.linesIdx = new List<string>();
+			this.logs = new List<string>();
 			this.startTime = DateTime.Now;
 			this.matchList = new List<MatchDocument>();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
@@ -54,6 +55,7 @@ namespace Arx.DocSearch.Client
 		private List<string> docs;
 		private List<string> lines;
 		private List<string> linesIdx;
+		private List<string> logs;
 		private DateTime startTime;
 		private int roughLines;
 		private List<MatchDocument> matchList;
@@ -200,7 +202,7 @@ namespace Arx.DocSearch.Client
 		{
 			try
 			{
-				Debug.WriteLine("StartSearch");
+				this.WriteLog("StartSearch");
 				if (!File.Exists(this.SrcFile))
 				{
 					return false;
@@ -219,7 +221,7 @@ namespace Arx.DocSearch.Client
 				this.DeliverFile(FileChoice.INDEX_FILE);
 				try
 				{
-					Debug.WriteLine("HCOperate Begin");
+					this.WriteLog("HCOperate Begin");
 					HCInterface.Client.HCOperate(0,
 							this.DOnStartOperate, null,
 							null, null,
@@ -232,11 +234,11 @@ namespace Arx.DocSearch.Client
 							null, null,
 							null, null,
 							null, null);
-					Debug.WriteLine("HCOperate End");
+					this.WriteLog("HCOperate End");
 				}
 				catch (Exception e)
 				{
-					Debug.WriteLine(e.Message);
+					this.WriteLog(e.Message);
 					this.WriteLog(e.Message + e.StackTrace);
 					throw;
 				}
@@ -245,6 +247,7 @@ namespace Arx.DocSearch.Client
 				Array.Sort(matchArray, (a, b) => (int)((a.Rate - b.Rate) * -1000000));
 				this.mainForm.updateListView(matchArray, true);
 				this.mainForm.FinishSearch(string.Format("{0} 文書中 100% 完了。開始 {1} 終了 {2}。", docs.Count, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()), this.matchLinesTable, this.srcFile);
+				this.WriteErrorLog();
 			}
 			catch (Exception e)
 			{
@@ -314,7 +317,7 @@ namespace Arx.DocSearch.Client
 
 		private void DeliverFile(FileChoice Choice)
 		{
-			Debug.WriteLine("DeliverFile");
+			this.WriteLog("DeliverFile");
 			this.fileChoice = Choice;
 			HCInterface.Client.HCOperate(1,
 								this.DOnStartOperate, null,
@@ -332,7 +335,7 @@ namespace Arx.DocSearch.Client
 
 		private void CleanFile(FileChoice Choice)
 		{
-			Debug.WriteLine("CleanFile");
+			this.WriteLog("CleanFile");
 			this.fileChoice = Choice;
 			HCInterface.Client.HCOperate(2,
 								this.DOnStartOperate, null,
@@ -351,6 +354,12 @@ namespace Arx.DocSearch.Client
 		private void WriteLog(string Log)
 		{
 			Debug.WriteLine(Log);
+			this.logs.Add(string.Format("[{0}] {1}", DateTime.Now, Log));
+		}
+
+		private void WriteErrorLog()
+		{
+			string Log = string.Join("\r\n", this.logs.ToArray());
 			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log");
 			ErrorLog.Instance.WriteErrorLog(path, Log);
 		}
@@ -358,7 +367,7 @@ namespace Arx.DocSearch.Client
 		/* セッションイベント */
 		private void DoOnStartOperate(int Code, uint NodeList, ref bool DoDeliver, ref bool DoRace, ref bool DoClean)
 		{
-			Debug.WriteLine("DoOnStartOperate");
+			this.WriteLog("DoOnStartOperate");
 			if ((Code == 0) || (Code == 2)) DoDeliver = false;
 			if ((Code == 1) || (Code == 2)) DoRace = false;
 			if ((Code == 0) || (Code == 1)) DoClean = false;
@@ -366,12 +375,12 @@ namespace Arx.DocSearch.Client
 
 		private void DoOnStartDeliver(int Code, uint DataList, uint NewDataList)
 		{
-			Debug.WriteLine("DoOnStartDeliver");
+			this.WriteLog("DoOnStartDeliver");
 			string fname;
 			if (this.fileChoice == FileChoice.TEXT_FILE) fname = SearchJob.GetTextFileName(this.SrcFile);
 			else if (this.fileChoice == FileChoice.INDEX_FILE) fname = SearchJob.GetIndexFileName(this.SrcFile);
 			else return;
-			Debug.WriteLine(string.Format("DoOnStartDeliver fname={0}", fname));
+			this.WriteLog(string.Format("DoOnStartDeliver fname={0}", fname));
 			if (!File.Exists(fname)) return;
 			//8文字のランダムな文字列を作成する
 			Guid g = System.Guid.NewGuid();
@@ -379,10 +388,10 @@ namespace Arx.DocSearch.Client
 			string ext = Path.GetExtension(fname);
 			string newFile = string.Format("{0}{1:X8}{2}", guid, System.Environment.TickCount, ext);
 			File.Copy(fname, newFile);
-			Debug.WriteLine(string.Format("DoOnStartDeliver newFile.Exists={0}", File.Exists(newFile)));
+			this.WriteLog(string.Format("DoOnStartDeliver newFile.Exists={0}", File.Exists(newFile)));
 			uint data = 0;
 			HCInterface.Client.HCCreateFileData(HCInterface.Client.HCClientNode(), newFile, ref data);
-			Debug.WriteLine(string.Format("fileName={0} data={1:X8}", newFile, data));
+			this.WriteLog(string.Format("fileName={0} data={1:X8}", newFile, data));
 			HCInterface.Client.HCAddDataToList(HCInterface.Client.HCNodeDataList(HCInterface.Client.HCClientNode()), data);
 			HCInterface.Client.HCAddDataToList(DataList, data);
 			HCInterface.Client.HCAddDataToList(NewDataList, data);
@@ -390,7 +399,7 @@ namespace Arx.DocSearch.Client
 
 		private void DoOnFinishDeliver(int Code, uint DataList, uint NewDataList)
 		{
-			Debug.WriteLine("DoOnFinishDeliver");
+			this.WriteLog("DoOnFinishDeliver");
 			for (int nodeIndex = 1; nodeIndex <= HCInterface.Client.HCNodeCountInList(HCInterface.Client.HCGlobalNodeList()); nodeIndex++)
 			{
 				if (this.fileChoice == FileChoice.TEXT_FILE) this.TextDataArray[nodeIndex - 1] = 0;
@@ -408,12 +417,12 @@ namespace Arx.DocSearch.Client
 		private void DoOnStartRace(int Code, ref int BatchCount)
 		{
 			BatchCount = this.docs.Count;
-			Debug.WriteLine(string.Format("DoOnStartRace Code={0} BatchCount={1}", Code, BatchCount));
+			this.WriteLog(string.Format("DoOnStartRace Code={0} BatchCount={1}", Code, BatchCount));
 		}
 
 		private void DoOnStartClean(int Code, uint DataList)
 		{
-			Debug.WriteLine(string.Format("DoOnStartClean fileChoice={0}", this.fileChoice));
+			this.WriteLog(string.Format("DoOnStartClean fileChoice={0}", this.fileChoice));
 			while (HCInterface.Client.HCDataCountInList(DataList) > 0)
 			{
 				HCInterface.Client.HCDeleteDataFromList(DataList, 1);
@@ -437,14 +446,14 @@ namespace Arx.DocSearch.Client
 					default: break;
 				}
 			}
-			Debug.WriteLine("DoOnStartClean Finished");
+			this.WriteLog("DoOnStartClean Finished");
 		}
 
 		private void DoOnStartBatch(int Code, int BatchIndex, uint Node,
 			ref bool DoSend, ref bool DoExecute, ref bool DoReceive, ref bool DoWaste,
 			uint DataList, uint NewDataList)
 		{
-			Debug.WriteLine("DoOnStartBatch");
+			this.WriteLog("DoOnStartBatch");
 			DoSend = false;
 		}
 
@@ -453,7 +462,7 @@ namespace Arx.DocSearch.Client
 		{
 			try
 			{
-				Debug.WriteLine(string.Format("DoOnStartExecute BatchIndex={0}", BatchIndex));
+				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0}", BatchIndex));
 				int nodeIndex = HCInterface.Client.HCNodeIndexInList(HCInterface.Client.HCGlobalNodeList(), Node);
 				HCInterface.Client.HCClearDescription(Description);
 				HCInterface.Client.HCWriteAnsiStringEntry(Description, HCInterface.Client.HCFileDataFileName(this.TextDataArray[nodeIndex - 1]));
@@ -483,19 +492,19 @@ namespace Arx.DocSearch.Client
 				{
 					//文書番号をHCから取得する
 					int index = HCInterface.Client.HCReadLongEntry(Description);
-					Debug.WriteLine(string.Format("[{0}] DoOnFinishExecute BatchIndex={1} index={2} doc={3}", DateTime.Now, BatchIndex, index, this.docs[BatchIndex - 1]));
+					this.WriteLog(string.Format("[{0}] DoOnFinishExecute BatchIndex={1} index={2} doc={3}", DateTime.Now, BatchIndex, index, this.docs[BatchIndex - 1]));
 					//バイト配列のサイズをHCから取得する
 					int matchLinesLength = HCInterface.Client.HCReadLongEntry(Description);
-					Debug.WriteLine(string.Format("[{0}] DoOnFinishExecute matchLinesLength={1} doc={2}", DateTime.Now, matchLinesLength, this.docs[BatchIndex - 1]));
+					this.WriteLog(string.Format("[{0}] DoOnFinishExecute matchLinesLength={1} doc={2}", DateTime.Now, matchLinesLength, this.docs[BatchIndex - 1]));
 					int matchDocumentLength = HCInterface.Client.HCReadLongEntry(Description);
 					//バイト配列をHCから取得する
 					byte[] bMatchLines = this.HCReadMemory(Description, matchLinesLength);
-					Debug.WriteLine(string.Format("[{0}] DoOnFinishExecute bMatchLines.Length={1} doc={2}", DateTime.Now, bMatchLines.Length, this.docs[BatchIndex - 1]));
+					this.WriteLog(string.Format("[{0}] DoOnFinishExecute bMatchLines.Length={1} doc={2}", DateTime.Now, bMatchLines.Length, this.docs[BatchIndex - 1]));
 					byte[] bMatchDocument = this.HCReadMemory(Description, matchDocumentLength);
 					//バイト配列を検索結果インスタンスにデシリアライズする
 					Dictionary<int, MatchLine> matchLines = (this.DeserializeObject(bMatchLines)) as Dictionary<int, MatchLine>;
-					if (null == matchLines) Debug.WriteLine("matchLines is null");
-					else Debug.WriteLine(string.Format("[{0}] DoOnFinishExecute matchLines.Count={1} doc={2}", DateTime.Now, matchLines.Count, this.docs[BatchIndex - 1]));
+					if (null == matchLines) this.WriteLog("matchLines is null");
+					else this.WriteLog(string.Format("[{0}] DoOnFinishExecute matchLines.Count={1} doc={2}", DateTime.Now, matchLines.Count, this.docs[BatchIndex - 1]));
 
 					MatchDocument md = (this.DeserializeObject(bMatchDocument)) as MatchDocument;
 					//デシリアライズしたインスタンスをリストに追加する。
@@ -514,19 +523,19 @@ namespace Arx.DocSearch.Client
 		/* ノードイベント */
 		private void DoOnGetMemory(int SlotIndex, uint Size, ref uint Address)
 		{
-			Debug.WriteLine("DoOnGetMemory");
+			this.WriteLog("DoOnGetMemory");
 			Address = Convert.ToUInt32(Marshal.AllocHGlobal((int)Size).ToInt32());
 		}
 
 		private void DoOnFreeMemory(int SlotIndex, uint Address)
 		{
-			Debug.WriteLine("DoOnFreeMemory");
+			this.WriteLog("DoOnFreeMemory");
 			Marshal.FreeHGlobal(new IntPtr(Convert.ToInt32(Address)));
 		}
 
 		private void InitializeHC()
 		{
-			Debug.WriteLine("InitializeHC");
+			this.WriteLog("InitializeHC");
 			this.Processing = false;
 			this.Initialized = false;
 			HCInterface.Client.HCInitialize(UserIndex, this.DOnGetMemory,
