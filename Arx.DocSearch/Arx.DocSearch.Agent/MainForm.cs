@@ -14,30 +14,41 @@ namespace Arx.DocSearch.Agent
 	{
 		public MainForm()
 		{
+			this.logs = new List<string>();
 			InitializeComponent();
+			this.timer1.Interval = 5000;
 		}
 
 		private SearchJob job;
 		private const string CRLF = "\r\n";
+		private List<string> logs;
 		delegate void AppendTextCallback(string text);
 
 		private void onLoad(object sender, EventArgs e)
 		{
 			int userIndex = this.GetUserIndexFromCommandLine();
 			this.CleanFolder();
+			this.timer1.Start();
 			this.job = new SearchJob(this, userIndex);
 		}
 
 		private void onFormClosing(object sender, FormClosingEventArgs e)
 		{
+			this.WriteErrorLog();
 			this.job.Dispose();
 			this.CleanFolder();
+			this.timer1.Stop();
 		}
 
 		private void onResize(object sender, EventArgs e)
 		{
 			this.textBox.Width = this.ClientSize.Width - 16;
 			this.textBox.Height = this.ClientSize.Height - 13;
+		}
+
+		private void timer1_Tick(object sender, EventArgs e)
+		{
+			this.WriteErrorLog();
 		}
 
 		private int GetUserIndexFromCommandLine()
@@ -64,15 +75,24 @@ namespace Arx.DocSearch.Agent
 			}
 			else
 			{
-				this.textBox.AppendText(string.Format("[{0}] {1}{2}", DateTime.Now, Log, CRLF));
+				string text = string.Format("[{0}] {1}{2}", DateTime.Now, Log, CRLF);
+				this.textBox.AppendText(text);
+				this.logs.Add(text);
 				if (this.textBox.Lines.Length > 400)
 				{
 					this.textBox.Select(0, this.textBox.Lines[0].Length + 1);
 					this.textBox.SelectedText = string.Empty;
 				}
 			}
-			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log");
+		}
+
+		private void WriteErrorLog()
+		{
+			if (0 == this.logs.Count) return;
+			string Log = string.Join("\r\n", this.logs.ToArray());
+			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log2");
 			ErrorLog.Instance.WriteErrorLog(path, Log);
+			this.logs.Clear();
 		}
 
 		private void CleanFolder()
@@ -96,5 +116,6 @@ namespace Arx.DocSearch.Agent
 				}
 			}
 		}
+
 	}
 }

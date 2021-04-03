@@ -33,6 +33,7 @@ namespace Arx.DocSearch.Client
 		#region コンストラクタ
 		public MainForm()
 		{
+			this.logs = new List<string>();
 			InitializeComponent();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
 			this.reservationList = new List<Reservation>();
@@ -42,7 +43,7 @@ namespace Arx.DocSearch.Client
 		#region フィールド
 		private Schema config;
 		private string configFile;
-		private readonly int LINE_LENGHTH = 70;
+		//private readonly int LINE_LENGHTH = 70;
 		private int minWords;
 		private Dictionary<int, Dictionary<int, MatchLine>> matchLinesTable;
 		private int lineCount = 0;
@@ -51,6 +52,7 @@ namespace Arx.DocSearch.Client
 		private List<Reservation> reservationList;
 		private SearchJob job;
 		private string xlsdir;
+		private List<string> logs;
 		#endregion
 
 		#region Property
@@ -227,6 +229,7 @@ namespace Arx.DocSearch.Client
 				this.WriteLog(string.Format("Conifg File was saved.  Xlsdir={0}", this.config.Xlsdir));
 			}
 			this.job.Dispose();
+			this.WriteErrorLog();
 		}
 
 		private void srcButton_Click(object sender, EventArgs e)
@@ -997,12 +1000,20 @@ namespace Arx.DocSearch.Client
 			return ((char)iCol) + iRow.ToString();
 		}
 
-		private void WriteLog(string Log)
+		public void WriteLog(string Log)
 		{
+			Debug.WriteLine(Log);
+			this.logs.Add(string.Format("[{0}] {1}", DateTime.Now, Log));
+		}
+
+		private void WriteErrorLog()
+		{
+			string Log = string.Join("\r\n", this.logs.ToArray());
 			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log");
 			ErrorLog.Instance.WriteErrorLog(path, Log);
+			this.logs.Clear();
 		}
- 
+
 		#endregion
 	}
 }

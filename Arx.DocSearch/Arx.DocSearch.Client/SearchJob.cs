@@ -31,7 +31,6 @@ namespace Arx.DocSearch.Client
 			this.docs = new List<string>();
 			this.lines = new List<string>();
 			this.linesIdx = new List<string>();
-			this.logs = new List<string>();
 			this.startTime = DateTime.Now;
 			this.matchList = new List<MatchDocument>();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
@@ -55,7 +54,6 @@ namespace Arx.DocSearch.Client
 		private List<string> docs;
 		private List<string> lines;
 		private List<string> linesIdx;
-		private List<string> logs;
 		private DateTime startTime;
 		private int roughLines;
 		private List<MatchDocument> matchList;
@@ -243,11 +241,12 @@ namespace Arx.DocSearch.Client
 					throw;
 				}
 				// リストをID順でソートする
-				MatchDocument[] matchArray = this.matchList.ToArray();
-				Array.Sort(matchArray, (a, b) => (int)((a.Rate - b.Rate) * -1000000));
-				this.mainForm.updateListView(matchArray, true);
+				if (0 < this.matchList.Count) {
+					MatchDocument[] matchArray = this.matchList.ToArray();
+					Array.Sort(matchArray, (a, b) => (int)((a.Rate - b.Rate) * -1000000));
+					this.mainForm.updateListView(matchArray, true);
+				}
 				this.mainForm.FinishSearch(string.Format("{0} 文書中 100% 完了。開始 {1} 終了 {2}。", docs.Count, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()), this.matchLinesTable, this.srcFile);
-				this.WriteErrorLog();
 			}
 			catch (Exception e)
 			{
@@ -353,15 +352,7 @@ namespace Arx.DocSearch.Client
 
 		private void WriteLog(string Log)
 		{
-			Debug.WriteLine(Log);
-			this.logs.Add(string.Format("[{0}] {1}", DateTime.Now, Log));
-		}
-
-		private void WriteErrorLog()
-		{
-			string Log = string.Join("\r\n", this.logs.ToArray());
-			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log");
-			ErrorLog.Instance.WriteErrorLog(path, Log);
+			this.mainForm.WriteLog(Log);
 		}
 
 		/* セッションイベント */
@@ -501,16 +492,21 @@ namespace Arx.DocSearch.Client
 					byte[] bMatchLines = this.HCReadMemory(Description, matchLinesLength);
 					this.WriteLog(string.Format("[{0}] DoOnFinishExecute bMatchLines.Length={1} doc={2}", DateTime.Now, bMatchLines.Length, this.docs[BatchIndex - 1]));
 					byte[] bMatchDocument = this.HCReadMemory(Description, matchDocumentLength);
-					//バイト配列を検索結果インスタンスにデシリアライズする
-					Dictionary<int, MatchLine> matchLines = (this.DeserializeObject(bMatchLines)) as Dictionary<int, MatchLine>;
-					if (null == matchLines) this.WriteLog("matchLines is null");
-					else this.WriteLog(string.Format("[{0}] DoOnFinishExecute matchLines.Count={1} doc={2}", DateTime.Now, matchLines.Count, this.docs[BatchIndex - 1]));
-
-					MatchDocument md = (this.DeserializeObject(bMatchDocument)) as MatchDocument;
-					//デシリアライズしたインスタンスをリストに追加する。
-					this.matchList.Add(md);
-					this.MatchLinesTable.Add(index, matchLines);
-					this.mainForm.UpdateProgressText(string.Format("{0} 検索を完了しました。", this.docs[BatchIndex - 1]));
+					if (0 < bMatchLines.Length && 0 < bMatchDocument.Length)
+					{
+						//バイト配列を検索結果インスタンスにデシリアライズする
+						Dictionary<int, MatchLine> matchLines = (this.DeserializeObject(bMatchLines)) as Dictionary<int, MatchLine>;
+						this.WriteLog(string.Format("DoOnFinishExecute matchLines.Count={0} doc={1}", matchLines.Count, this.docs[BatchIndex - 1]));
+						MatchDocument md = (this.DeserializeObject(bMatchDocument)) as MatchDocument;
+						//デシリアライズしたインスタンスをリストに追加する。
+						this.matchList.Add(md);
+						this.MatchLinesTable.Add(index, matchLines);
+						this.mainForm.UpdateProgressText(string.Format("{0} 検索を完了しました。", this.docs[BatchIndex - 1]));
+					}
+					else
+					{
+						this.WriteLog(string.Format("DoOnFinishExecute matchLines is null doc={0}", this.docs[BatchIndex - 1]));
+					}
 					this.showProgress();
 				}
 				catch (Exception e)

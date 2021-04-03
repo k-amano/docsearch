@@ -28,7 +28,9 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			this.components = new System.ComponentModel.Container();
 			this.textBox = new System.Windows.Forms.RichTextBox();
+			this.timer1 = new System.Windows.Forms.Timer(this.components);
 			this.SuspendLayout();
 			// 
 			// textBox
@@ -42,6 +44,10 @@
 			this.textBox.Size = new System.Drawing.Size(784, 441);
 			this.textBox.TabIndex = 0;
 			this.textBox.Text = "";
+			// 
+			// timer1
+			// 
+			this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
 			// 
 			// MainForm
 			// 
@@ -64,7 +70,7 @@
 		#endregion
 
 		private System.Windows.Forms.RichTextBox textBox;
-
+		private System.Windows.Forms.Timer timer1;
 	}
 }
 
