@@ -37,6 +37,7 @@ namespace Arx.DocSearch.Client
 			InitializeComponent();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
 			this.reservationList = new List<Reservation>();
+			this.timer1.Interval = 5000;
 		}
 		#endregion
 
@@ -210,6 +211,7 @@ namespace Arx.DocSearch.Client
 			this.messageLabel.Text = string.Empty;
 			this.countLabel.Text = string.Empty;
 			this.GetTotalCount();
+			this.timer1.Start();
 			this.job = new SearchJob(this);
 		}
 
@@ -356,6 +358,11 @@ namespace Arx.DocSearch.Client
 			//並び替える（ListViewItemSorterを設定するとSortが自動的に呼び出される）
 			this.listView1.Sort();
 
+		}
+
+		private void timer1_Tick(object sender, EventArgs e)
+		{
+			this.WriteErrorLog();
 		}
 
 		private void InitializeListView()
@@ -1015,5 +1022,6 @@ namespace Arx.DocSearch.Client
 		}
 
 		#endregion
+
 	}
 }

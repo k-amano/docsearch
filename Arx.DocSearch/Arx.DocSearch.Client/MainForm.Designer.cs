@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			this.components = new System.ComponentModel.Container();
 			this.logButton = new System.Windows.Forms.Button();
 			this.searchJpButton = new System.Windows.Forms.Button();
 			this.countLabel = new System.Windows.Forms.Label();
@@ -56,6 +57,7 @@
 			this.progressText = new System.Windows.Forms.RichTextBox();
 			this.folderBrowserDialog2 = new System.Windows.Forms.FolderBrowserDialog();
 			this.srcCombo = new System.Windows.Forms.ComboBox();
+			this.timer1 = new System.Windows.Forms.Timer(this.components);
 			this.SuspendLayout();
 			// 
 			// logButton
@@ -187,6 +189,7 @@
 			// 
 			// listView1
 			// 
+			this.listView1.HideSelection = false;
 			this.listView1.Location = new System.Drawing.Point(29, 103);
 			this.listView1.Name = "listView1";
 			this.listView1.Size = new System.Drawing.Size(752, 213);
@@ -284,6 +287,10 @@
 			this.srcCombo.Size = new System.Drawing.Size(523, 20);
 			this.srcCombo.TabIndex = 49;
 			// 
+			// timer1
+			// 
+			this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
@@ -353,6 +360,7 @@
 		private System.Windows.Forms.RichTextBox progressText;
 		private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog2;
 		private System.Windows.Forms.ComboBox srcCombo;
+		private System.Windows.Forms.Timer timer1;
 	}
 }
 
