@@ -5,7 +5,6 @@ using System.IO;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using HCInterface;
 using Arx.DocSearch.Util;
 
 namespace Arx.DocSearch.Agent

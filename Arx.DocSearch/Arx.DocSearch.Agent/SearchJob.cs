@@ -365,6 +365,14 @@ namespace Arx.DocSearch.Agent
 
 		private void DoOnExecuteTask(int SlotIndex, uint Description)
 		{
+			//テスト用に無駄な負荷をかける
+			/*int period = 60000;
+			double value = 0;
+			int t = Environment.TickCount;
+			while (Environment.TickCount < t + period)
+            {
+				value = System.Math.Sqrt(value);
+            }*/
 			try
 			{
 				//this.DebugLog(string.Format("DoOnExecuteTask SlotIndex={0} Description={1}", SlotIndex, Description));
