@@ -282,7 +282,8 @@ namespace Arx.DocSearch
 		public double SearchLine(string line, string lineIdx, List<string> paragraphs, List<int> targetLines, int no, ref int pos, ref int totalCount, ref int targetLine, ref int totalWords, ref int matchWords)
 		{
 			if (string.IsNullOrEmpty(line)) return 0;
-			string[] words = lineIdx.Split(' ');
+            if (this.isJp && string.IsNullOrEmpty(lineIdx)) return 0;
+            string[] words = lineIdx.Split(' ');
 			if (words.Length < this.minWords) return 0;
 			totalCount++;
 			double rate = 0;
@@ -326,9 +327,10 @@ namespace Arx.DocSearch
 			if (matchCount < 0) matchCount = 0;
 			wordCount = Math.Max(result.PiecesOld.Length, result.PiecesNew.Length);
 			double rate = (double)matchCount / (double)wordCount;
-			//if (0.7 < rate && rate < 1.0) Debug.WriteLine(string.Format("src={0}\ntarget={1}", src, target));
-			//if (0.4 < rate && src.Contains("operably coupled")) Debug.WriteLine(string.Format("src={0}\ntarget={1}\n matchCount={2}", src, target, matchCount));
-			return rate;
+            //if (0.7 < rate && rate < 1.0) Debug.WriteLine(string.Format("src={0}\ntarget={1}", src, target));
+            //if (0.4 < rate && src.Contains("operably coupled")) Debug.WriteLine(string.Format("src={0}\ntarget={1}\n matchCount={2}", src, target, matchCount));
+            //Debug.WriteLine(string.Format("src={0}\ntarget={1}\n matchCount={2}", src, target, matchCount));
+            return rate;
 		}
 
 		public void SearchRough(List<string> linesIdx, List<string> paragraphs, List<int> roughMatchLines)
@@ -461,7 +463,8 @@ namespace Arx.DocSearch
 
 		private List<string> GetParagraphs(string fname)
 		{
-			string line;
+            //Debug.WriteLine("#GetParagraphs:" + fname);
+            string line;
 			List<string> paragraphs = new List<string>();
 			int i = 0;
 			using (StreamReader file = new StreamReader(fname))
