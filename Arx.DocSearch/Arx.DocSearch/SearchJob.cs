@@ -207,20 +207,28 @@ namespace Arx.DocSearch
 				}
 			}
 			this.MatchLinesTable.Clear();
-			for (int j = 0; j < this.docs.Count; j++)
+			List<int>[] dataPacks = this.getDataPack(10);
+			for (int i = 0; i < dataPacks.Length; i++)
 			{
-				this.mainForm.UpdateCountLabel(string.Format("{0} 文書中 {1} 文書目。開始 {2} 終了 {3}。", docs.Count, j + 1, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()));
-				int matchCount = 0;
-				double rate = 0D;
-				Dictionary<int, MatchLine> matchLines = this.SearchDocument(this.docs[j], j, ref matchCount, ref rate);
-				this.matchList.Add(new MatchDocument(rate, matchCount, this.docs[j], j));
-				this.MatchLinesTable.Add(j, matchLines);
-				if (0 < this.matchList.Count)
-				{
-					MatchDocument md = this.matchList[this.matchList.Count - 1];
-					this.mainForm.updateListView(new MatchDocument[] { md }, false);
-				}
-			}
+				List<int> dataPack = dataPacks[i];
+                for (int j = 0; j < dataPack.Count; j++)
+                {
+					int n = dataPack[j];
+                    this.mainForm.UpdateCountLabel(string.Format("{0} 文書中 {1} 文書目。開始 {2} 終了 {3}。", this.docs.Count, n + 1, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()));
+                    int matchCount = 0;
+                    double rate = 0D;
+                    Dictionary<int, MatchLine> matchLines = this.SearchDocument(this.docs[n], n, ref matchCount, ref rate);
+                    this.matchList.Add(new MatchDocument(rate, matchCount, this.docs[n], n));
+                    this.MatchLinesTable.Add(n, matchLines);
+                    if (0 < this.matchList.Count)
+                    {
+                        MatchDocument md = this.matchList[this.matchList.Count - 1];
+                        this.mainForm.updateListView(new MatchDocument[] { md }, false);
+                    }
+                }
+
+            }
+
 			// リストをID順でソートする
 			MatchDocument[] matchArray = this.matchList.ToArray();
 			Array.Sort(matchArray, (a, b) => (int)((a.Rate - b.Rate) * -1000000));
@@ -478,7 +486,25 @@ namespace Arx.DocSearch
 			}
 			return paragraphs;
 		}
-		#endregion
-	}
+
+        private List<int>[] getDataPack(int packCount)
+        {
+
+            List<int>[] dataPacks = new List<int>[packCount];
+            for (int i = 0; i < packCount; i++)
+            {
+                List<int> pack = new List<int>();
+                dataPacks[i] = pack;
+            }
+            Random r = new System.Random();
+            for (int i = 0; i < this.docs.Count; i++)
+            {
+                int n = r.Next(0, packCount - 1);
+                dataPacks[n].Add(i);
+            }
+            return dataPacks;
+        }
+        #endregion
+    }
 }
 
