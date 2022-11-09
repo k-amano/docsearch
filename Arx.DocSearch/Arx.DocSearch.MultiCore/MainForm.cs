@@ -9,13 +9,19 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using View = System.Windows.Forms.View;
 using Xyn.Util;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
 using iTextSharp.text.pdf.parser;
+using Arx.DocSearch.Util;
+using NPOI.HSSF.UserModel;
+using NPOI.SS.UserModel;
+using NPOI.HSSF.Util;
+using View = System.Windows.Forms.View;
+using BorderStyle = NPOI.SS.UserModel.BorderStyle;
 
 namespace Arx.DocSearch.MultiCore
+
 {
 	public partial class MainForm : Form
 	{
@@ -24,27 +30,31 @@ namespace Arx.DocSearch.MultiCore
 				[MarshalAs(UnmanagedType.BStr)] String lpFileName,
 				bool bProp,
 				[MarshalAs(UnmanagedType.BStr)] ref String lpFileText);
+
 		#region コンストラクタ
 		public MainForm()
 		{
+			this.logs = new List<string>();
 			InitializeComponent();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
 			this.reservationList = new List<Reservation>();
+			this.timer1.Interval = 5000;
 		}
 		#endregion
 
 		#region フィールド
 		private Schema config;
 		private string configFile;
-		private readonly int LINE_LENGHTH = 70;
+		//private readonly int LINE_LENGHTH = 70;
 		private int minWords;
 		private Dictionary<int, Dictionary<int, MatchLine>> matchLinesTable;
 		private int lineCount = 0;
 		private int charCount = 0;
 		private bool isJp = false;
-		//private string targetString;
 		private List<Reservation> reservationList;
 		private SearchJob job;
+		private string xlsdir;
+		private List<string> logs;
 		#endregion
 
 		#region Property
@@ -62,14 +72,25 @@ namespace Arx.DocSearch.MultiCore
 		{
 			get
 			{
-				return srcText.Text;
+				return srcCombo.Text;
 			}
 			set
 			{
-				srcText.Text = value;
+				srcCombo.Text = value;
 			}
 		}
 
+		public List<string> SrcFiles
+		{
+			get
+			{
+				return this.GetSrcFiles();
+			}
+			set
+			{
+				this.SetSrcFiles(value);
+			}
+		}
 
 		public int MinWords
 		{
@@ -177,40 +198,51 @@ namespace Arx.DocSearch.MultiCore
 			this.openFileDialog1.Title = "検索元のテキストファイルを選択してください";
 			//フォルダ選択ダイアログ上部に表示する説明テキストを指定する
 			this.folderBrowserDialog1.Description = "検索先のフォルダを指定してください。";
+			this.folderBrowserDialog2.Description = "検索結果を出力するフォルダを指定してください。";
 			this.InitializeListView();
 			this.configFile = Path.Combine(this.UserAppDataPath, "DocSearch.config");
 			this.config = Schema.LoadSettings(this.configFile);
-			this.srcText.Text = this.config.SrcFile;
+			//this.srcCombo.Text = this.config.SrcFile;
+			this.SrcFiles = this.config.SrcFiles;
 			this.targetText.Text = this.config.TargetFolder;
 			this.rateText.Text = this.config.Rate;
 			this.wordCountText.Text = this.config.WordCount;
 			this.roughLinesText.Text = this.config.RoughLines;
+			this.xlsdir = this.config.Xlsdir;
 			this.messageLabel.Text = string.Empty;
 			this.countLabel.Text = string.Empty;
 			this.GetTotalCount();
+			this.timer1.Start();
 			this.job = new SearchJob(this);
 		}
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
+			this.WriteLog(string.Format("Closing MainForm. Xlsdir={0}", this.xlsdir));
 			if (null != this.config)
 			{
-				this.config.SrcFile = this.srcText.Text;
+				//this.config.SrcFile = this.srcCombo.Text;
+				this.config.SrcFiles = this.SrcFiles;
 				this.config.TargetFolder = this.targetText.Text;
 				this.config.Rate = this.rateText.Text;
 				this.config.WordCount = this.wordCountText.Text;
 				this.config.RoughLines = this.roughLinesText.Text;
+				this.config.Xlsdir = this.xlsdir;
 				this.config.SaveSettings(this.configFile);
+				this.WriteLog(string.Format("Conifg File was saved.  Xlsdir={0}", this.config.Xlsdir));
 			}
 			this.job.Dispose();
+			this.WriteErrorLog();
 		}
 
 		private void srcButton_Click(object sender, EventArgs e)
 		{
-			if (this.openFileDialog1.ShowDialog() == DialogResult.OK)
+			SelectSourceForm f = new SelectSourceForm(this);
+			f.ShowDialog();
+			/*if (this.openFileDialog1.ShowDialog() == DialogResult.OK)
 			{
 				this.srcText.Text = this.openFileDialog1.FileName;
-			}
+			}*/
 			this.GetTotalCount();
 		}
 
@@ -245,28 +277,35 @@ namespace Arx.DocSearch.MultiCore
 			int docId = ConvertEx.GetInt(lvi.SubItems[3].Text);
 			Dictionary<int, MatchLine> matchLines = new Dictionary<int, MatchLine>();
 			if (this.matchLinesTable.ContainsKey(docId)) matchLines = this.matchLinesTable[docId];
-			CompareForm f = new CompareForm(this, lvi, this.srcText.Text, this.isJp, this.lineCount, this.charCount, matchLines);
+			CompareForm f = new CompareForm(this, lvi, this.srcCombo.Text, this.isJp, this.lineCount, this.charCount, matchLines);
 			f.Show();
 		}
 
 		private void indexButton_Click(object sender, EventArgs e)
 		{
-			if (!File.Exists(this.srcText.Text))
+			foreach (string srcFile in this.srcCombo.Items)
 			{
-				MessageBox.Show("検索元を選択してください。");
-				return;
+				if (!File.Exists(srcFile))
+				{
+					MessageBox.Show("検索元が選択されていないか、存在しないファイルが含まれています。");
+					return;
+				}
 			}
 			var task = Task.Factory.StartNew(() =>
 			{
-				string textFile = SearchJob.GetTextFileName(this.srcText.Text);
-				if (string.IsNullOrEmpty(textFile))
+				foreach (string srcFile in this.srcCombo.Items)
 				{
-					List<string> ls = new List<string>();
-					ls.Add(this.srcText.Text);
-					if (".pdf".Equals(Path.GetExtension(this.srcText.Text).ToLower())) this.MakeTextFileFromPdf(ls);
-					else this.MakeTextFile(ls);
+					string textFile = SearchJob.GetTextFileName(srcFile);
+					if (string.IsNullOrEmpty(textFile))
+					{
+						List<string> ls = new List<string>();
+						ls.Add(srcFile);
+						if (".pdf".Equals(Path.GetExtension(srcFile).ToLower())) this.MakeTextFileFromPdf(ls);
+						else this.MakeTextFile(ls);
+						textFile = SearchJob.GetTextFileName(srcFile);
+					}
+					this.MakeIndexFile(textFile);
 				}
-				this.MakeIndexFile(textFile);
 				this.Invoke((MethodInvoker)delegate()
 				{
 					this.messageLabel.Text = "インデックス作成が完了しました。";
@@ -322,6 +361,11 @@ namespace Arx.DocSearch.MultiCore
 
 		}
 
+		private void timer1_Tick(object sender, EventArgs e)
+		{
+			this.WriteErrorLog();
+		}
+
 		private void InitializeListView()
 		{
 			// ListViewコントロールのプロパティを設定
@@ -373,10 +417,8 @@ namespace Arx.DocSearch.MultiCore
 			{
 				string dir = Path.GetDirectoryName(file);
 				if (dir.Contains(".adsidx")) continue; //".adsidx"ディレトクトリはパスする
-				//Debug.WriteLine(file + "   " + Path.GetFileName(file));
 				// 「.」で始まるファイルはパスする
 				if (Path.GetFileName(file).StartsWith(".") || Path.GetFileName(dir).StartsWith(".")) continue;
-				//Debug.WriteLine("##OK");
 				if (exts.Contains(Path.GetExtension(file).ToLower()))
 				{
 					docs.Add(file);
@@ -388,7 +430,6 @@ namespace Arx.DocSearch.MultiCore
 		private string GetTargetText(string doc)
 		{
 			string fname = SearchJob.GetTextFileName(doc);
-			//Debug.WriteLine(string.Format("doc={0} fname={1}", doc, fname));
 			string line;
 			StringBuilder sb  = new StringBuilder();
 			if (File.Exists(fname))
@@ -450,7 +491,9 @@ namespace Arx.DocSearch.MultiCore
 					writer.Close();
 				}
 			}
-			catch { }
+			catch (Exception e) {
+				Debug.WriteLine(e.StackTrace);
+			}
 			finally
 			{
 				if (null != writer)
@@ -554,7 +597,6 @@ namespace Arx.DocSearch.MultiCore
 			string dir = Path.GetDirectoryName(textFile);
 			string indexFile = Path.Combine(dir, Path.GetFileNameWithoutExtension(textFile) + ".idx");
 			if (File.Exists(indexFile)) File.Delete(indexFile);
-			//if (File.Exists(indexFile) && File.GetLastWriteTime(textFile) <= File.GetLastWriteTime(indexFile)) return;
 			StreamReader reader = null;
 			StreamWriter writer = null;
 			try
@@ -568,6 +610,10 @@ namespace Arx.DocSearch.MultiCore
 					string line2 = TextConverter.SplitWords(line);
 					writer.WriteLine(line2);
 				}
+			}
+			catch (Exception e)
+			{
+				Debug.WriteLine(e.StackTrace);
 			}
 			finally
 			{
@@ -586,7 +632,7 @@ namespace Arx.DocSearch.MultiCore
 		{
 			this.lineCount = 0;
 			this.charCount = 0;
-			string textFile = SearchJob.GetTextFileName(this.srcText.Text);
+			string textFile = SearchJob.GetTextFileName(this.srcCombo.Text);
 			if (File.Exists(textFile))
 			{
 				using (StreamReader file = new StreamReader(textFile))
@@ -604,36 +650,31 @@ namespace Arx.DocSearch.MultiCore
 		}
 
 
-		private void SaveLog()
+		private void SaveLog(string srcFile)
 		{
-			string fname = Path.GetFileNameWithoutExtension(this.srcText.Text);
+			string fname = Path.GetFileNameWithoutExtension(srcFile);
 			var timespan = DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 			string logFile = Path.Combine(this.UserAppDataPath, string.Format("{0}.{1}.log", fname, (uint)timespan.TotalSeconds));
 			Log log = new Log();
-
-			//if (null != log)
-			{
-				log.SrcFile = this.srcText.Text;
-				log.TargetFolder = this.targetText.Text;
-				log.ListItems = this.ListViewToCsv();
-				log.IsJp = this.isJp;
-				log.LineCount = this.lineCount;
-				log.CharCount = this.charCount;
-				log.MatchLinesTable = this.matchLinesTable;
-				log.SaveSettings(logFile);
-				//Debug.WriteLine("ListItems:" + log.ListItems);
-			}
+			log.SrcFile = srcFile;
+			log.TargetFolder = this.targetText.Text;
+			log.ListItems = this.ListViewToCsv();
+			log.IsJp = this.isJp;
+			log.LineCount = this.lineCount;
+			log.CharCount = this.charCount;
+			log.MatchLinesTable = this.matchLinesTable;
+			log.SaveSettings(logFile);
 		}
 
 		private void LoadLog(string logFile)
 		{
 			Log log = null;
-			//Debug.WriteLine(logFile);
 			if (File.Exists(logFile)) log = Log.LoadSettings(logFile);
 
 			if (null != log)
 			{
-				this.srcText.Text = log.SrcFile;
+				this.srcCombo.Items.Clear();
+				this.srcCombo.Text = log.SrcFile;
 				this.targetText.Text = log.TargetFolder;
 				this.CsvToListView(log.ListItems);
 				this.isJp = log.IsJp;
@@ -674,10 +715,13 @@ namespace Arx.DocSearch.MultiCore
 
 		private void SelectAction()
 		{
-			if (!File.Exists(this.srcText.Text) || !Directory.Exists(this.targetText.Text))
+			foreach (string srcFile in this.srcCombo.Items)
 			{
-				MessageBox.Show("検索ファイルを指定してください");
-				return;
+				if (!File.Exists(srcFile) || !Directory.Exists(this.targetText.Text))
+				{
+					MessageBox.Show("検索ファイルが指定されていないか、存在しないファイルが含まれています。");
+					return;
+				}
 			}
 			string indexFile = SearchJob.GetIndexFileName(this.SrcFile);
 			if (string.IsNullOrEmpty(indexFile))
@@ -717,42 +761,57 @@ namespace Arx.DocSearch.MultiCore
 
 		private void AddReservation()
 		{
-			foreach (Reservation r in this.reservationList)
+			foreach (string item in this.srcCombo.Items)
 			{
-				if (this.srcText.Text.Equals(r.SrcFile) && this.targetText.Text.Equals(r.TargetFolder)) return;
+				foreach (Reservation r in this.reservationList)
+				{
+					if (item.Equals(r.SrcFile) && this.targetText.Text.Equals(r.TargetFolder)) return;
+				}
+				Reservation newReserve = new Reservation(item, this.targetText.Text, this.isJp);
+				this.reservationList.Add(newReserve);
 			}
-			Reservation newReserve = new Reservation(this.srcText.Text, this.targetText.Text, this.isJp);
-			this.reservationList.Add(newReserve);
 		}
 
 		private void SearchReservationList()
 		{
+			//Debug.WriteLine("### SearchReservationList");
 			this.progressText.Clear();
 			this.messageLabel.Text = string.Empty;
 			this.countLabel.Text = string.Empty;
+			this.folderBrowserDialog2.SelectedPath = this.xlsdir;
+			if (this.folderBrowserDialog2.ShowDialog() == DialogResult.OK)
+			{
+				this.xlsdir = this.folderBrowserDialog2.SelectedPath;
+			}
+			//Debug.WriteLine(string.Format("xlsdir={0}", this.xlsdir));
+			this.WriteLog(string.Format("Xlsdir was selected: {0}", this.xlsdir));
 			var task = Task.Factory.StartNew(() =>
 			{
+				//Debug.WriteLine("Task begins ...");
 				foreach (Reservation r in this.reservationList)
 				{
+					//Debug.WriteLine(string.Format("r.SrcFile={0}", r.SrcFile));
 					this.Invoke(
 						(MethodInvoker)delegate()
 						{
-							this.srcText.Text = r.SrcFile;
+							this.srcCombo.Text = r.SrcFile;
 							this.targetText.Text = r.TargetFolder;
 							this.isJp = r.IsJp;
 						}
 					);
+					//Debug.WriteLine(string.Format("r.SrcFile={0}, this.SrcFile={1}", r.SrcFile, this.SrcFile));
 					List<string> docs = this.FindDocuments();
 					//using (SearchJob job = new SearchJob(this))
 					//{
 						job.Docs = docs;
-						job.SrcFile = this.SrcFile;
+						job.SrcFile = r.SrcFile;
 						job.MinWords = this.MinWords;
 						job.RoughLines = ConvertEx.GetInt(this.RoughLines);
 						job.WordCount = this.WordCount;
-						job.IsJp = this.isJp;
+						job.IsJp = r.IsJp;
 						job.RateLevel = ConvertEx.GetDouble(this.rateText.Text) / 100;
-						job.StartSearch();
+						if (!job.StartSearch()) break;
+						//job.StartSearch();
 					//}
 				}
 				this.reservationList.Clear();
@@ -763,6 +822,16 @@ namespace Arx.DocSearch.MultiCore
 		{
 			this.listView1.Items.Clear();
 		}
+
+		/*public void UpdateCountLabel(string message)
+		{
+			this.Invoke(
+				(MethodInvoker)delegate()
+				{
+					this.countLabel.Text = message;
+				}
+			);
+		}*/
 
 		public void UpdateMessageLabel(string message)
 		{
@@ -786,7 +855,7 @@ namespace Arx.DocSearch.MultiCore
 			);
 		}
 
-		public void FinishSearch(string message, Dictionary<int, Dictionary<int, MatchLine>> matchLinesTable)
+		public void FinishSearch(string message, Dictionary<int, Dictionary<int, MatchLine>> matchLinesTable, string srcFile)
 		{
 			this.matchLinesTable = matchLinesTable;
 			this.Invoke(
@@ -794,10 +863,166 @@ namespace Arx.DocSearch.MultiCore
 				{
 					this.messageLabel.Text = "検索が完了しました。";
 					this.countLabel.Text = message;
-					this.SaveLog();
+					this.SaveLog(srcFile);
+					this.OutputWordCountList();
 				}
 			);
 		}
+
+		private List<string> GetSrcFiles()
+		{
+			List<string> srcFiles = new List<string>();
+			foreach (string srcFile in this.srcCombo.Items)
+			{
+				srcFiles.Add(srcFile);
+			}
+			return srcFiles;
+		}
+
+		private void SetSrcFiles(List<string> srcFiles)
+		{
+			this.srcCombo.Items.Clear();
+			foreach (string srcFile in srcFiles)
+			{
+				this.srcCombo.Items.Add(srcFile);
+			}
+			if (0 < this.srcCombo.Items.Count) this.srcCombo.SelectedIndex = 0;
+		}
+
+		private int[] GetWordCountByRate(Dictionary<int, MatchLine> matchLines)
+		{
+			int[] results = new int[10];
+			foreach (KeyValuePair<int, MatchLine> pair in matchLines)
+			{
+				MatchLine matchLine = pair.Value;
+				int level = (int)(Math.Ceiling((1D - matchLine.Rate) * 10));
+				if (level < 0) level = 0;
+				else if (9 < level) level = 9;
+				results[level] += matchLine.MatchWords;
+			}
+			return results;
+		}
+
+		private void OutputWordCountList()
+		{
+			string[] headers = new string[] { "検索元ファイル名", "検索先ファイル名", "100%", "90%以上", "80%以上", "70%以上", "60%以上", "50%以上", "合計" };
+			Int32 colCount = headers.Length;
+			Int32 iRow = 0;
+			IRow row;
+			ICell cell;
+			// ワークブックオブジェクト生成
+			HSSFWorkbook workbook = new HSSFWorkbook();
+			// シートオブジェクト生成
+			ISheet sheet1 = workbook.CreateSheet("WordCountList");
+			// セルスタイル（黒線）
+			ICellStyle blackBorder = workbook.CreateCellStyle();
+			blackBorder.BorderBottom = BorderStyle.Thin;
+			blackBorder.BorderLeft = BorderStyle.Thin;
+			blackBorder.BorderRight = BorderStyle.Thin;
+			blackBorder.BorderTop = BorderStyle.Thin;
+			blackBorder.BottomBorderColor = HSSFColor.Black.Index;
+			blackBorder.LeftBorderColor = HSSFColor.Black.Index;
+			blackBorder.RightBorderColor = HSSFColor.Black.Index;
+			blackBorder.TopBorderColor = HSSFColor.Black.Index;
+			//ヘッダー行の作成
+			row = sheet1.CreateRow(iRow);
+			// セルを作成する（水平方向）
+			for (int i = 0; i < colCount; i++)
+			{
+				cell = row.CreateCell(i);
+				// セルに黒色の枠を付ける
+				cell.CellStyle = blackBorder;
+				cell.SetCellValue(headers[i]);
+			}
+			iRow++;
+			string fname = Path.GetFileName(this.srcCombo.Text);
+			// セルを作成する（垂直方向）
+			foreach (ListViewItem lvi in this.listView1.Items)
+			{
+				int docId = ConvertEx.GetInt(lvi.SubItems[3].Text);
+				double rate = ConvertEx.GetDouble(lvi.SubItems[0].Text);
+				if (rate <= 0D) continue;
+				Dictionary<int, MatchLine> matchLines = new Dictionary<int, MatchLine>();
+				if (this.matchLinesTable.ContainsKey(docId)) matchLines = this.matchLinesTable[docId];
+				else continue;
+				int[] arr = this.GetWordCountByRate(matchLines);
+				int total = 0;
+				foreach (int n in arr)
+				{
+					total += n;
+				}
+				row = sheet1.CreateRow(iRow);
+				// セルを作成する（水平方向）
+				for (int i = 0; i < colCount; i++)
+				{
+					cell = row.CreateCell(i);
+					// セルに黒色の枠を付ける
+					cell.CellStyle = blackBorder;
+					if (0 == i)
+					{
+						cell.SetCellValue(fname);
+					}
+					else if (1 == i)
+					{
+						cell.SetCellValue(Path.GetFileName(lvi.SubItems[2].Text));
+					}
+					else if (colCount - 1 == i)
+					{
+						cell.SetCellValue(total);
+					}
+					else
+					{
+						cell.SetCellValue(arr[i - 2]);
+					}
+				}
+				iRow++;
+			}
+			// Excelファイル出力
+			var timespan = DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+			string xlsname = Path.Combine(
+				this.xlsdir,
+				string.Format("{0}.{1}.xls", Path.GetFileNameWithoutExtension(this.srcCombo.Text),
+				(uint)timespan.TotalSeconds)
+				);
+			this.OutputExcelFile(xlsname, workbook);
+			this.WriteLog(string.Format("Search result was saved to {0}", xlsname));
+		}
+
+		//-------------------------------------------------
+		// Excelファイル出力
+		//-------------------------------------------------
+		private void OutputExcelFile(String strFileName, HSSFWorkbook workbook)
+		{
+			FileStream file = new FileStream(strFileName, FileMode.Create);
+			workbook.Write(file);
+			file.Close();
+		}
+
+		//-------------------------------------------------
+		// セルの位置を取得する
+		//-------------------------------------------------
+		private String GetCellPos(Int32 iRow, Int32 iCol)
+		{
+			iCol = Convert.ToInt32('A') + iCol;
+			iRow = iRow + 1;
+			return ((char)iCol) + iRow.ToString();
+		}
+
+		public void WriteLog(string Log)
+		{
+			Debug.WriteLine(Log);
+			this.logs.Add(string.Format("[{0}] {1}", DateTime.Now, Log));
+		}
+
+		private void WriteErrorLog()
+		{
+			string Log = string.Join("\r\n", this.logs.ToArray());
+			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log");
+			ErrorLog.Instance.WriteErrorLog(path, Log);
+			this.logs.Clear();
+		}
+
 		#endregion
+
 	}
 }

@@ -12,6 +12,7 @@ using Xyn.Util;
 using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
+using Arx.DocSearch.Util;
 
 namespace Arx.DocSearch.MultiCore
 {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Xml.Serialization;
@@ -17,15 +18,18 @@ namespace Arx.DocSearch.MultiCore
 			this.targetFolder = "";
 			this.rate = "60";
 			this.wordCount = "10";
+			this.xlsdir = System.Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 		}
 		#endregion
 
 		#region Field
 		private string srcFile;
+		private List<string> srcFiles;
 		private string targetFolder;
 		private string rate;
 		private string wordCount;
 		private string roughLines;
+		private string xlsdir;
 		#endregion
 
 		#region Property
@@ -41,6 +45,19 @@ namespace Arx.DocSearch.MultiCore
 			set
 			{
 				srcFile = value;
+			}
+		}
+
+
+		public List<string> SrcFiles
+		{
+			get
+			{
+				return srcFiles;
+			}
+			set
+			{
+				srcFiles = value;
 			}
 		}
 
@@ -104,6 +121,22 @@ namespace Arx.DocSearch.MultiCore
 			}
 		}
 
+
+		/// <summary>
+		/// ログイン時にアクセスする Web ページの URL を取得または設定します。
+		/// </summary>
+		public string Xlsdir
+		{
+			get
+			{
+				return xlsdir;
+			}
+			set
+			{
+				xlsdir = value;
+			}
+		}
+
 		#endregion
 
 		#region Method
@@ -130,7 +163,7 @@ namespace Arx.DocSearch.MultiCore
 			}
 			catch (Exception ex)
 			{
-				Debug.WriteLine(ex.ToString());
+				Debug.WriteLine(ex.Message + ex.StackTrace);
 			}
 			return schema;
 		}

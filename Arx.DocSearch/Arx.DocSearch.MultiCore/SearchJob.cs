@@ -15,6 +15,7 @@ using DiffPlex.DiffBuilder.Model;
 using Xyn.Util;
 using ConvertEx = Xyn.Util.ConvertEx;
 using HCInterface;
+using Arx.DocSearch.Util;
 
 namespace Arx.DocSearch.MultiCore
 {
@@ -214,52 +215,61 @@ namespace Arx.DocSearch.MultiCore
 			}
 		}
 
-		public void StartSearch()
+		public bool StartSearch()
 		{
-			Debug.WriteLine("StartSearch");
-			if (!File.Exists(this.SrcFile))
-			{
-				return;
-			}
-			this.mainForm.Invoke(
-				(MethodInvoker)delegate()
-				{
-					this.mainForm.ClearListView();
-				}
-			);
-			this.MatchLinesTable.Clear();
-			this.matchList.Clear();
-			this.CleanFile(FileChoice.TEXT_FILE);
-			this.DeliverFile(FileChoice.TEXT_FILE);
-			this.CleanFile(FileChoice.INDEX_FILE);
-			this.DeliverFile(FileChoice.INDEX_FILE);
-			try
-			{
-				Debug.WriteLine("HCOperate Start");
-				Multi.HCOperate(0,
-						this.DOnStartOperate, null,
-						null, null,
-						this.DOnStartRace, null,
-						null, null,
-						this.DOnStartBatch, null,
-						null, null,
-						this.DOnStartExecute, this.DOnFinishExecute,
-						null, null,
-						null, null,
-						null, null,
-						null, null);
-			}
-			catch (Exception e)
-			{
-				Debug.WriteLine(e.Message);
-				throw;
-			}
-			// リストをID順でソートする
-			MatchDocument[] matchArray = this.matchList.ToArray();
-			Array.Sort(matchArray, (a, b) => (int)((a.Rate - b.Rate) * -1000000));
-			this.mainForm.updateListView(matchArray, true);
-			this.mainForm.FinishSearch(string.Format("{0} 文書中 100% 完了。開始 {1} 終了 {2}。", docs.Count, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()), this.matchLinesTable);
-		}
+            try
+            {
+                Debug.WriteLine("StartSearch");
+                if (!File.Exists(this.SrcFile))
+                {
+                    return false;
+                }
+                this.mainForm.Invoke(
+                    (MethodInvoker)delegate ()
+                    {
+                        this.mainForm.ClearListView();
+                    }
+                );
+                this.MatchLinesTable.Clear();
+                this.matchList.Clear();
+                this.CleanFile(FileChoice.TEXT_FILE);
+                this.DeliverFile(FileChoice.TEXT_FILE);
+                this.CleanFile(FileChoice.INDEX_FILE);
+                this.DeliverFile(FileChoice.INDEX_FILE);
+                try
+                {
+                    Debug.WriteLine("HCOperate Start");
+                    Multi.HCOperate(0,
+                            this.DOnStartOperate, null,
+                            null, null,
+                            this.DOnStartRace, null,
+                            null, null,
+                            this.DOnStartBatch, null,
+                            null, null,
+                            this.DOnStartExecute, this.DOnFinishExecute,
+                            null, null,
+                            null, null,
+                            null, null,
+                            null, null);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e.Message);
+                    throw;
+                }
+                // リストをID順でソートする
+                MatchDocument[] matchArray = this.matchList.ToArray();
+                Array.Sort(matchArray, (a, b) => (int)((a.Rate - b.Rate) * -1000000));
+                this.mainForm.updateListView(matchArray, true);
+                this.mainForm.FinishSearch(string.Format("{0} 文書中 100% 完了。開始 {1} 終了 {2}。", docs.Count, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()), this.matchLinesTable, this.srcFile);
+            }
+            catch (Exception e)
+            {
+                this.WriteLog(e.Message + e.StackTrace);
+                return false;
+            }
+            return true;
+        }
 
 		private void showProgress()
 		{
@@ -580,8 +590,13 @@ namespace Arx.DocSearch.MultiCore
 								null, null);
 		}
 
-		/* セッションイベント */
-		private void DoOnStartOperate(int Code, uint NodeList, ref bool DoDeliver, ref bool DoRace, ref bool DoClean)
+        private void WriteLog(string Log)
+        {
+            this.mainForm.WriteLog(Log);
+        }
+
+        /* セッションイベント */
+        private void DoOnStartOperate(int Code, uint NodeList, ref bool DoDeliver, ref bool DoRace, ref bool DoClean)
 		{
 			Debug.WriteLine("DoOnStartOperate");
 			if ((Code == 0) || (Code == 2)) DoDeliver = false;

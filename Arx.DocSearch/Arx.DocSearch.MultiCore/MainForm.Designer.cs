@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			this.components = new System.ComponentModel.Container();
 			this.logButton = new System.Windows.Forms.Button();
 			this.searchJpButton = new System.Windows.Forms.Button();
 			this.countLabel = new System.Windows.Forms.Label();
@@ -51,10 +52,12 @@
 			this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
 			this.targetLabel = new System.Windows.Forms.Label();
 			this.srcButton = new System.Windows.Forms.Button();
-			this.srcText = new System.Windows.Forms.TextBox();
 			this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
 			this.srcLabel = new System.Windows.Forms.Label();
 			this.progressText = new System.Windows.Forms.RichTextBox();
+			this.folderBrowserDialog2 = new System.Windows.Forms.FolderBrowserDialog();
+			this.srcCombo = new System.Windows.Forms.ComboBox();
+			this.timer1 = new System.Windows.Forms.Timer(this.components);
 			this.SuspendLayout();
 			// 
 			// logButton
@@ -186,6 +189,7 @@
 			// 
 			// listView1
 			// 
+			this.listView1.HideSelection = false;
 			this.listView1.Location = new System.Drawing.Point(29, 103);
 			this.listView1.Name = "listView1";
 			this.listView1.Size = new System.Drawing.Size(752, 213);
@@ -252,13 +256,6 @@
 			this.srcButton.UseVisualStyleBackColor = true;
 			this.srcButton.Click += new System.EventHandler(this.srcButton_Click);
 			// 
-			// srcText
-			// 
-			this.srcText.Location = new System.Drawing.Point(91, 20);
-			this.srcText.Name = "srcText";
-			this.srcText.Size = new System.Drawing.Size(523, 19);
-			this.srcText.TabIndex = 26;
-			// 
 			// openFileDialog1
 			// 
 			this.openFileDialog1.FileName = "openFileDialog1";
@@ -282,11 +279,24 @@
 			this.progressText.TabIndex = 48;
 			this.progressText.Text = "";
 			// 
+			// srcCombo
+			// 
+			this.srcCombo.FormattingEnabled = true;
+			this.srcCombo.Location = new System.Drawing.Point(93, 20);
+			this.srcCombo.Name = "srcCombo";
+			this.srcCombo.Size = new System.Drawing.Size(523, 20);
+			this.srcCombo.TabIndex = 49;
+			// 
+			// timer1
+			// 
+			this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(803, 509);
+			this.Controls.Add(this.srcCombo);
 			this.Controls.Add(this.progressText);
 			this.Controls.Add(this.logButton);
 			this.Controls.Add(this.searchJpButton);
@@ -309,7 +319,6 @@
 			this.Controls.Add(this.targetText);
 			this.Controls.Add(this.targetLabel);
 			this.Controls.Add(this.srcButton);
-			this.Controls.Add(this.srcText);
 			this.Controls.Add(this.srcLabel);
 			this.Name = "MainForm";
 			this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
@@ -346,10 +355,12 @@
 		private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog1;
 		private System.Windows.Forms.Label targetLabel;
 		private System.Windows.Forms.Button srcButton;
-		private System.Windows.Forms.TextBox srcText;
 		private System.Windows.Forms.OpenFileDialog openFileDialog1;
 		private System.Windows.Forms.Label srcLabel;
 		private System.Windows.Forms.RichTextBox progressText;
+		private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog2;
+		private System.Windows.Forms.ComboBox srcCombo;
+		private System.Windows.Forms.Timer timer1;
 	}
 }
 

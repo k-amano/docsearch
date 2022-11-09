@@ -5,6 +5,7 @@ using System.IO;
 using System.Xml.Serialization;
 using System.Runtime.Serialization;
 using System.Xml;
+using Arx.DocSearch.Util;
 
 namespace Arx.DocSearch.MultiCore
 {
@@ -154,7 +155,7 @@ namespace Arx.DocSearch.MultiCore
 			}
 			catch (Exception ex)
 			{
-				Debug.WriteLine(ex.ToString());
+				Debug.WriteLine(ex.Message +  ex.StackTrace);
 			}
 			return log;
 		}
@@ -178,7 +179,7 @@ namespace Arx.DocSearch.MultiCore
 			}
 			catch (Exception ex)
 			{
-				Debug.WriteLine(ex.ToString());
+				Debug.WriteLine(ex.Message + ex.StackTrace);
 			}
 		}
 		#endregion

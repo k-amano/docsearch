@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Windows.Forms;
 using Xyn.Util;
+using Arx.DocSearch.Util;
 
 namespace Arx.DocSearch.MultiCore
 {
