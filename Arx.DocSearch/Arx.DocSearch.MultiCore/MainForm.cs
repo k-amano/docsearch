@@ -881,6 +881,7 @@ namespace Arx.DocSearch.MultiCore
 
 		private void SetSrcFiles(List<string> srcFiles)
 		{
+			if (null == srcFiles) return;
 			this.srcCombo.Items.Clear();
 			foreach (string srcFile in srcFiles)
 			{

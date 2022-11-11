@@ -146,7 +146,7 @@ namespace Arx.DocSearch.Agent
 
 		public double SearchLine(string line, string lineIdx, List<string> paragraphs, List<int> targetLines, int no, ref int pos, ref int totalCount, ref int targetLine, ref int totalWords, ref int matchWords)
 		{
-			if (string.IsNullOrEmpty(line)) return 0;
+			if (string.IsNullOrEmpty(line) || string.IsNullOrEmpty(lineIdx)) return 0;
 			string[] words = lineIdx.Split(' ');
 			if (words.Length < this.minWords) return 0;
 			totalCount++;
