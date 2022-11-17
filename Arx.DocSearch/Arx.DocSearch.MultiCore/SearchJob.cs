@@ -29,8 +29,8 @@ namespace Arx.DocSearch.MultiCore
 		{
 			this.mainForm = mainForm;
 			this.docs = new List<string>();
-			this.lines = new List<string>();
-			this.linesIdx = new List<string>();
+			this.lines = new Dictionary<int, List<string>>();
+			this.linesIdx = new Dictionary<int, List<string>>();
 			this.startTime = DateTime.Now;
 			this.matchList = new List<MatchDocument>();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
@@ -55,8 +55,8 @@ namespace Arx.DocSearch.MultiCore
 		#region フィールド
 		private MainForm mainForm;
 		private List<string> docs;
-		private List<string> lines;
-		private List<string> linesIdx;
+		Dictionary<int, List<string>> lines;
+		Dictionary<int, List<string>> linesIdx;
 		private DateTime startTime;
 		private int roughLines;
 		private List<MatchDocument> matchList;
@@ -226,17 +226,25 @@ namespace Arx.DocSearch.MultiCore
 					return false;
 				}
 				this.mainForm.Invoke(
-					(MethodInvoker)delegate()
+					(MethodInvoker)delegate ()
 					{
 						this.mainForm.ClearListView();
 					}
 				);
 				this.MatchLinesTable.Clear();
 				this.matchList.Clear();
-				this.CleanFile(FileChoice.TEXT_FILE);
-				this.DeliverFile(FileChoice.TEXT_FILE);
-				this.CleanFile(FileChoice.INDEX_FILE);
-				this.DeliverFile(FileChoice.INDEX_FILE);
+				this.lines.Clear();
+				this.linesIdx.Clear();
+				for (int i = 0; i < this.docs.Count; i++)
+				{
+					this.lines[i] = new List<string>();
+					this.linesIdx[i] = new List<string>();
+
+				}
+				//this.CleanFile(FileChoice.TEXT_FILE);
+				//this.DeliverFile(FileChoice.TEXT_FILE);
+				//this.CleanFile(FileChoice.INDEX_FILE);
+				//this.DeliverFile(FileChoice.INDEX_FILE);
 				try
 				{
 					this.WriteLog("HCOperate Begin");
@@ -299,39 +307,52 @@ namespace Arx.DocSearch.MultiCore
 			int total = 0;
 			int characterCount = 0;
 			int pos = 0;
-			int linesCount = lines.Count;
+			int linesCount = this.lines[docId].Count;
 #if DEBUG
 			if (TEST_MAX_LINES < linesCount) linesCount = TEST_MAX_LINES;
 #endif
+			if (this.linesIdx[docId].Count < linesCount) linesCount = linesIdx[docId].Count;
 			List<int> roughMatchLines = new List<int>();
 			if (0 < this.roughLines)
 			{
 				this.mainForm.UpdateProgressText(string.Format("{0} ラフ検索を開始しました。", doc));
-				this.SearchRough(this.linesIdx, paragraphs, roughMatchLines);
+				this.SearchRough(this.linesIdx[docId], paragraphs, roughMatchLines);
 				this.mainForm.UpdateProgressText(string.Format("{0} ラフ検索を完了しました。", doc));
 			}
-			for (int i = 0; i < linesCount; i++)
+			int i = 0;
+			try
 			{
-				if (string.IsNullOrEmpty((lines[i]))) continue;
-				if (0 == this.roughLines || roughMatchLines.Contains(i))
+
+				for (i = 0; i < linesCount; i++)
 				{
-					int targetLine = 0;
-					int totalWords = 0;
-					int matchWords = 0;
-					pos = 0; // ラフ検索を含めて常に最初から検索する。
-					double lineRate = this.SearchLine(lines[i], this.linesIdx[i], paragraphs, targetLines, i, ref pos, ref total, ref targetLine, ref totalWords, ref matchWords);
-					if (0D < lineRate)
+					if (string.IsNullOrEmpty(lines[docId][i])) continue;
+					if (string.IsNullOrEmpty(linesIdx[docId][i])) continue;
+					if (0 == this.roughLines || roughMatchLines.Contains(i))
 					{
-						MatchLine matchLine = new MatchLine(lineRate, targetLine, totalWords, matchWords);
-						matchLines.Add(i, matchLine);
-						matchCount++;
+						int targetLine = 0;
+						int totalWords = 0;
+						int matchWords = 0;
+						pos = 0; // ラフ検索を含めて常に最初から検索する。
+						double lineRate = this.SearchLine(lines[docId][i], this.linesIdx[docId][i], paragraphs, targetLines, i, ref pos, ref total, ref targetLine, ref totalWords, ref matchWords);
+						if (0D < lineRate)
+						{
+							MatchLine matchLine = new MatchLine(lineRate, targetLine, totalWords, matchWords);
+							matchLines.Add(i, matchLine);
+							matchCount++;
+						}
 					}
+					else
+					{
+						total++;
+					}
+					characterCount += lines[docId][i].Length;
 				}
-				else
-				{
-					total++;
-				}
-				characterCount += lines[i].Length;
+			}
+			catch (Exception ex)
+			{
+				this.WriteLog(String.Format("i={0}, linesCount={1},lines.Count={2} linesIdx.Count={3}", i, linesCount, lines[docId].Count, linesIdx[docId].Count));
+				this.WriteLog(ex.StackTrace);
+
 			}
 			rate = 0 == total ? 0D : (double)matchCount / (double)total;
 			return matchLines;
@@ -612,9 +633,11 @@ namespace Arx.DocSearch.MultiCore
 		private void DoOnStartOperate(int Code, uint NodeList, ref bool DoDeliver, ref bool DoRace, ref bool DoClean)
 		{
 			this.WriteLog("DoOnStartOperate");
-			if ((Code == 0) || (Code == 2)) DoDeliver = false;
+			/*if ((Code == 0) || (Code == 2)) DoDeliver = false;
 			if ((Code == 1) || (Code == 2)) DoRace = false;
-			if ((Code == 0) || (Code == 1)) DoClean = false;
+			if ((Code == 0) || (Code == 1)) DoClean = false;*/
+			DoDeliver = false;
+			DoClean = false;
 		}
 
 		private void DoOnStartDeliver(int Code, uint DataList, uint NewDataList)
@@ -805,23 +828,23 @@ namespace Arx.DocSearch.MultiCore
 			if (File.Exists(textFile) && File.Exists(indexFile) && File.Exists(docName))
 			{
 				//this.WriteLog(string.Format("DoOnExecuteTask File.Exists SlotIndex={0}", SlotIndex));
-				this.lines.Clear();
+				this.lines[index].Clear();
 				using (StreamReader file = new StreamReader(textFile))
 				{
 					string line;
 					while ((line = file.ReadLine()) != null)
 					{
-						this.lines.Add(line);
+						this.lines[index].Add(line);
 					}
 				}
 				//this.WriteLog(string.Format("DoOnExecuteTask textFile SlotIndex={0}", SlotIndex));
-				this.linesIdx.Clear();
+				this.linesIdx[index].Clear();
 				using (StreamReader file = new StreamReader(indexFile))
 				{
 					string line;
 					while ((line = file.ReadLine()) != null)
 					{
-						this.linesIdx.Add(line);
+						this.linesIdx[index].Add(line);
 					}
 				}
 				//this.WriteLog(string.Format("DoOnExecuteTask indexFile SlotIndex={0}", SlotIndex));
