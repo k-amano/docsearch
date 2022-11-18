@@ -40,10 +40,10 @@ namespace Arx.DocSearch.MultiCore
 			this.DOnGetProgress = new THCGetProgressEvent(this.DoOnGetProgress);
 			this.DOnInterrupt = new THCInterruptEvent(this.DoOnInterrupt);
 			this.DOnStartOperate = new THCOperateEvent(this.DoOnStartOperate);
-			this.DOnStartDeliver = new THCDeliverEvent(this.DoOnStartDeliver);
-			this.DOnFinishDeliver = new THCDeliverEvent(this.DoOnFinishDeliver);
+			//this.DOnStartDeliver = new THCDeliverEvent(this.DoOnStartDeliver);
+			//this.DOnFinishDeliver = new THCDeliverEvent(this.DoOnFinishDeliver);
 			this.DOnStartRace = new THCRaceEvent(this.DoOnStartRace);
-			this.DOnStartClean = new THCCleanEvent(this.DoOnStartClean);
+			//this.DOnStartClean = new THCCleanEvent(this.DoOnStartClean);
 			this.DOnStartBatch = new THCBatchEvent(this.DoOnStartBatch);
 			this.DOnStartExecute = new THCExecuteEvent(this.DoOnStartExecute);
 			this.DOnFinishExecute = new THCExecuteEvent(this.DoOnFinishExecute);
@@ -78,18 +78,18 @@ namespace Arx.DocSearch.MultiCore
 		private bool Initialized;
 		private double[] AgentProgressArray;
 		private bool[] AgentInterruptedArray;
-		public uint[] TextDataArray;
-		public uint[] IndexDataArray;
+		//public uint[] TextDataArray;
+		//public uint[] IndexDataArray;
 		private THCGetMemoryEvent DOnGetMemory;
 		private THCFreeMemoryEvent DOnFreeMemory;
 		private THCExecuteTaskEvent DOnExecuteTask;
 		private THCGetProgressEvent DOnGetProgress;
 		private THCInterruptEvent DOnInterrupt;
 		private THCOperateEvent DOnStartOperate;
-		private THCDeliverEvent DOnStartDeliver;
-		private THCDeliverEvent DOnFinishDeliver;
+		//private THCDeliverEvent DOnStartDeliver;
+		//private THCDeliverEvent DOnFinishDeliver;
 		private THCRaceEvent DOnStartRace;
-		private THCCleanEvent DOnStartClean;
+		//private THCCleanEvent DOnStartClean;
 		private THCBatchEvent DOnStartBatch;
 		private THCExecuteEvent DOnStartExecute;
 		private THCExecuteEvent DOnFinishExecute;
@@ -210,8 +210,8 @@ namespace Arx.DocSearch.MultiCore
 			Debug.WriteLine("Dispose");
 			if (this.Initialized)
 			{
-				this.CleanFile(FileChoice.TEXT_FILE);
-				this.CleanFile(FileChoice.INDEX_FILE);
+				//this.CleanFile(FileChoice.TEXT_FILE);
+				//this.CleanFile(FileChoice.INDEX_FILE);
 				HCInterface.Multi.HCFinalize();
 			}
 		}
@@ -588,7 +588,7 @@ namespace Arx.DocSearch.MultiCore
 			HCInterface.Multi.HCWriteMemoryEntry(description, (uint)address.ToInt32(), (uint)bb.Length);
 		}
 
-		private void DeliverFile(FileChoice Choice)
+		/*private void DeliverFile(FileChoice Choice)
 		{
 			this.WriteLog("DeliverFile");
 			this.fileChoice = Choice;
@@ -622,7 +622,7 @@ namespace Arx.DocSearch.MultiCore
 								null, null,
 								null, null,
 								null, null);
-		}
+		}*/
 
 		private void WriteLog(string Log)
 		{
@@ -640,7 +640,7 @@ namespace Arx.DocSearch.MultiCore
 			DoClean = false;
 		}
 
-		private void DoOnStartDeliver(int Code, uint DataList, uint NewDataList)
+		/*private void DoOnStartDeliver(int Code, uint DataList, uint NewDataList)
 		{
 			this.WriteLog("DoOnStartDeliver");
 			string fname;
@@ -662,9 +662,9 @@ namespace Arx.DocSearch.MultiCore
 			HCInterface.Multi.HCAddDataToList(HCInterface.Multi.HCNodeDataList(HCInterface.Multi.HCClientNode()), data);
 			HCInterface.Multi.HCAddDataToList(DataList, data);
 			HCInterface.Multi.HCAddDataToList(NewDataList, data);
-		}
+		}*/
 
-		private void DoOnFinishDeliver(int Code, uint DataList, uint NewDataList)
+		/*private void DoOnFinishDeliver(int Code, uint DataList, uint NewDataList)
 		{
 			this.WriteLog("DoOnFinishDeliver");
 			for (int nodeIndex = 1; nodeIndex <= HCInterface.Multi.HCNodeCountInList(HCInterface.Multi.HCGlobalNodeList()); nodeIndex++)
@@ -679,7 +679,7 @@ namespace Arx.DocSearch.MultiCore
 				if (this.fileChoice == FileChoice.TEXT_FILE) this.TextDataArray[nodeIndex - 1] = data;
 				else if (this.fileChoice == FileChoice.INDEX_FILE) this.IndexDataArray[nodeIndex - 1] = data;
 			}
-		}
+		}*/
 
 		private void DoOnStartRace(int Code, ref int BatchCount)
 		{
@@ -687,7 +687,7 @@ namespace Arx.DocSearch.MultiCore
 			this.WriteLog(string.Format("DoOnStartRace Code={0} BatchCount={1}", Code, BatchCount));
 		}
 
-		private void DoOnStartClean(int Code, uint DataList)
+		/*private void DoOnStartClean(int Code, uint DataList)
 		{
 			this.WriteLog(string.Format("DoOnStartClean fileChoice={0}", this.fileChoice));
 			while (HCInterface.Multi.HCDataCountInList(DataList) > 0)
@@ -714,7 +714,7 @@ namespace Arx.DocSearch.MultiCore
 				}
 			}
 			this.WriteLog("DoOnStartClean Finished");
-		}
+		}*/
 
 		private void DoOnStartBatch(int Code, int BatchIndex, uint Node,
 			ref bool DoSend, ref bool DoExecute, ref bool DoReceive, ref bool DoWaste,
@@ -732,17 +732,22 @@ namespace Arx.DocSearch.MultiCore
 				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0}", BatchIndex));
 				int nodeIndex = HCInterface.Multi.HCNodeIndexInList(HCInterface.Multi.HCGlobalNodeList(), Node);
 				HCInterface.Multi.HCClearDescription(Description);
-				HCInterface.Multi.HCWriteAnsiStringEntry(Description, HCInterface.Multi.HCFileDataFileName(this.TextDataArray[nodeIndex - 1]));
-				HCInterface.Multi.HCWriteAnsiStringEntry(Description, HCInterface.Multi.HCFileDataFileName(this.IndexDataArray[nodeIndex - 1]));
+				this.WriteLog("DoOnStartExecute2");
+				//HCInterface.Multi.HCWriteAnsiStringEntry(Description, HCInterface.Multi.HCFileDataFileName(this.TextDataArray[nodeIndex - 1]));
+				//HCInterface.Multi.HCWriteAnsiStringEntry(Description, HCInterface.Multi.HCFileDataFileName(this.IndexDataArray[nodeIndex - 1]));
 				HCInterface.Multi.HCWriteAnsiStringEntry(Description, this.docs[BatchIndex - 1]);
+				this.WriteLog("DoOnStartExecute2");
 				HCInterface.Multi.HCWriteLongEntry(Description, BatchIndex - 1);
 				HCInterface.Multi.HCWriteLongEntry(Description, ConvertEx.GetInt(this.WordCount));
 				HCInterface.Multi.HCWriteAnsiStringEntry(Description, this.wordCount);
 				HCInterface.Multi.HCWriteLongEntry(Description, this.roughLines);
 				HCInterface.Multi.HCWriteDoubleEntry(Description, this.rateLevel);
 				HCInterface.Multi.HCWriteBoolEntry(Description, this.isJp);
-				this.mainForm.UpdateProgressText(string.Format("{0} 検索を開始しました。", this.docs[BatchIndex - 1]));
-				this.showProgress();
+				this.WriteLog(string.Format("DoOnStartExecute3 docs={0}", this.docs[BatchIndex - 1]));
+				//this.mainForm.UpdateProgressText(string.Format("{0} 検索を開始しました。", this.docs[BatchIndex - 1]));
+				this.WriteLog("DoOnStartExecute4");
+				//this.showProgress();
+				this.WriteLog("DoOnStartExecute5");
 			}
 			catch (Exception e)
 			{
@@ -902,13 +907,13 @@ namespace Arx.DocSearch.MultiCore
 				this.AgentInterruptedArray[SlotIndex] = false;
 			}
 			int NodeCount = HCInterface.Multi.HCNodeCountInList(HCInterface.Multi.HCGlobalNodeList());
-			this.TextDataArray = new uint[NodeCount];
+			/*this.TextDataArray = new uint[NodeCount];
 			this.IndexDataArray = new uint[NodeCount];
 			for (int NodeIndex = 1; NodeIndex < NodeCount; NodeIndex++)
 			{
 				this.TextDataArray[NodeIndex - 1] = 0;
 				this.IndexDataArray[NodeIndex - 1] = 0;
-			}
+			}*/
 		}
 		#endregion
 	}
