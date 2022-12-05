@@ -382,7 +382,7 @@ namespace Arx.DocSearch.MultiCore
 			matchWords = result.PiecesOld.Length - diffCount;
 			if (matchWords < 0) matchWords = 0;
 			totalWords = Math.Max(result.PiecesOld.Length, result.PiecesNew.Length);
-			double rate = (double)matchWords / (double)matchWords;
+			double rate = (double)matchWords / (double)totalWords;
 			return rate;
 		}
 
