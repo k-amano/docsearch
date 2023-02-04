@@ -16,8 +16,6 @@ using Xyn.Util;
 using ConvertEx = Xyn.Util.ConvertEx;
 using HCInterface;
 using Arx.DocSearch.Util;
-using NPOI.SS.Formula.Functions;
-using Microsoft.Office.Interop.Word;
 
 namespace Arx.DocSearch.MultiCore
 {
