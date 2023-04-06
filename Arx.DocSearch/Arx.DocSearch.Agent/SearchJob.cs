@@ -16,6 +16,7 @@ using Xyn.Util;
 using ConvertEx = Xyn.Util.ConvertEx;
 using HCInterface;
 using Arx.DocSearch.Util;
+using static System.Windows.Forms.LinkLabel;
 
 namespace Arx.DocSearch.Agent
 {
@@ -45,11 +46,11 @@ namespace Arx.DocSearch.Agent
 		private MainForm mainForm;
 		//private List<string> lines;
 		//private List<string> linesIdx;
-		private int roughLines;
-		private int minWords;
-		private string wordCount;
-		private bool isJp = false;
-		private double rateLevel;
+		//private int roughLines;
+		//private int minWords;
+		//private string wordCount;
+		//private bool isJp = false;
+		//private double rateLevel;
 		//private readonly int TEST_MAX_LINES = 5000;
 		private readonly int TEST_MAX_LINES = 200;
 		private readonly int ROUGH_COUNT = 20;
@@ -80,7 +81,8 @@ namespace Arx.DocSearch.Agent
 			List<int> targetLines = new List<int>();
 			string targetDoc = SearchJob.GetTextFileName(doc);
 			if (!File.Exists(targetDoc)) return matchLines;
-			List<string> paragraphs = this.GetParagraphs(targetDoc);
+			List<string> paragraphs = this.GetParagraphs(targetDoc, aIsJp);
+
 			matchCount = 0;
 			int total = 0;
 			int characterCount = 0;
@@ -119,7 +121,6 @@ namespace Arx.DocSearch.Agent
 							matchLines.Add(i, matchLine);
 							matchCount++;
 						}
-						//Debug.WriteLine(string.Format("SearchDocument: docId={0} lines[{1}]={2} lineRate={3} matchWords={4} matchCount={5}", docId, i, lines[i], lineRate, matchWords, matchCount));
 					}
 					else
 					{
@@ -305,7 +306,7 @@ namespace Arx.DocSearch.Agent
 			return string.Empty;
 		}
 
-		private List<string> GetParagraphs(string fname)
+		private List<string> GetParagraphs(string fname, bool isJp)
 		{
 			string line;
 			List<string> paragraphs = new List<string>();
@@ -314,7 +315,7 @@ namespace Arx.DocSearch.Agent
 			{
 				while ((line = file.ReadLine()) != null)
 				{
-					if (this.isJp) line = TextConverter.SplitWords(line);
+					if (isJp) line = TextConverter.SplitWords(line);
 					paragraphs.Add(line);
 					i++;
 				}
@@ -363,7 +364,7 @@ namespace Arx.DocSearch.Agent
 		private byte[] HCReadMemory(uint description, int length)
 		{
 			IntPtr address = Marshal.AllocHGlobal(length * sizeof(byte));
-			HCInterface.Multi.HCReadMemoryEntry(description, (uint)address.ToInt32());
+			HCInterface.Agent.HCReadMemoryEntry(description, (uint)address.ToInt32());
 			byte[] bb = new byte[length];
 			Marshal.Copy(address, bb, 0, length);
 			return bb;
@@ -394,27 +395,24 @@ namespace Arx.DocSearch.Agent
 
 		private void DoOnExecuteTask(int SlotIndex, uint Description)
 		{
-			this.WriteLog("DoOnExecuteTask");
+			try
+			{
 			//検索テキストファイル名をHCから取得する
-			string textFile = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} textFile={1}", SlotIndex, textFile));
+			string textFile = HCInterface.Agent.HCReadAnsiStringEntry(Description);
 			//検索インデックスファイル名をHCから取得する
-			string indexFile = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} indexFile={1}", SlotIndex, indexFile));
+			string indexFile = HCInterface.Agent.HCReadAnsiStringEntry(Description);
 			//文書名をHCから取得する
-			string docName = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} srcFile={1} docName={2}", SlotIndex, srcFile, docName));
+			string docName = HCInterface.Agent.HCReadAnsiStringEntry(Description);
+			this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} textFile={1} indexFile={2} docName={3}", SlotIndex, textFile, indexFile, docName));
 			//文書番号をHCから取得する
-			int index = HCInterface.Multi.HCReadLongEntry(Description);
-			int aMinWords = HCInterface.Multi.HCReadLongEntry(Description);
-			//string wordCount = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			int aRoughLines = HCInterface.Multi.HCReadLongEntry(Description);
-			double aRateLevel = HCInterface.Multi.HCReadDoubleEntry(Description);
-			bool aIsJp = HCInterface.Multi.HCReadBoolEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0}, index={1}, aMinWords={2}, aRoughLines={3}, aRateLevel={4}, aIsJp={5}", SlotIndex, index, aMinWords, aRoughLines, aRateLevel, aIsJp));
+			int index = HCInterface.Agent.HCReadLongEntry(Description);
+			int aMinWords = HCInterface.Agent.HCReadLongEntry(Description);
+			int aRoughLines = HCInterface.Agent.HCReadLongEntry(Description);
+			double aRateLevel = HCInterface.Agent.HCReadDoubleEntry(Description);
+			bool aIsJp = HCInterface.Agent.HCReadBoolEntry(Description);
 			//バイト配列のサイズをHCから取得する
-			int linesLength = HCInterface.Multi.HCReadLongEntry(Description);
-			int linesIndxLength = HCInterface.Multi.HCReadLongEntry(Description);
+			int linesLength = HCInterface.Agent.HCReadLongEntry(Description);
+			int linesIndxLength = HCInterface.Agent.HCReadLongEntry(Description);
 			//バイト配列をHCから取得する
 			byte[] bLines = this.HCReadMemory(Description, linesLength);
 			byte[] bLinesIdx = this.HCReadMemory(Description, linesIndxLength);
@@ -429,22 +427,25 @@ namespace Arx.DocSearch.Agent
 				double rate = 0D;
 				//検索結果インスタンスを取得する
 				Dictionary<int, MatchLine> matchLines = this.SearchDocument(docName, index, ref matchCount, ref rate, aMinWords, aRoughLines, aRateLevel, aIsJp, lines, linesIdx);
-				//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} matchLines.Count={1} matchCount=[2]", SlotIndex, matchLines.Count, matchCount));
 				MatchDocument md = new MatchDocument(rate, matchCount, docName, index);
 				//検索結果インスタンスをバイト配列にシリアライズする
 				bMatchLines = this.SerializeObject(matchLines);
-				this.WriteLog(string.Format("DoOnExecuteTask  bMatchLines.Length={0}", bMatchLines.Length));
 				bMatchDocument = this.SerializeObject(md);
 			}
 			//文書番号をHCに登録する
-			HCInterface.Multi.HCWriteLongEntry(Description, index);
+			HCInterface.Agent.HCWriteLongEntry(Description, index);
 			//バイト配列のサイズをHCに登録する
-			HCInterface.Multi.HCWriteLongEntry(Description, (int)bMatchLines.Length);
-			HCInterface.Multi.HCWriteLongEntry(Description, (int)bMatchDocument.Length);
+			HCInterface.Agent.HCWriteLongEntry(Description, (int)bMatchLines.Length);
+			HCInterface.Agent.HCWriteLongEntry(Description, (int)bMatchDocument.Length);
 			//バイト配列をHCに登録する
 			this.HCWriteMemory(Description, bMatchLines);
 			this.HCWriteMemory(Description, bMatchDocument);
 			this.WriteLog("DoOnExecuteTask Finished");
+			}
+			catch (Exception e)
+			{
+				this.WriteLog(e.Message + e.StackTrace);
+			}
 		}
 
 

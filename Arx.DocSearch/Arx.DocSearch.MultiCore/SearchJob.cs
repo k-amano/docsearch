@@ -280,7 +280,7 @@ namespace Arx.DocSearch.MultiCore
 			List<int> targetLines = new List<int>();
 			string targetDoc = SearchJob.GetTextFileName(doc);
 			if (!File.Exists(targetDoc)) return matchLines;
-			List<string> paragraphs = this.GetParagraphs(targetDoc);
+			List<string> paragraphs = this.GetParagraphs(targetDoc, aIsJp);
 			matchCount = 0;
 			int total = 0;
 			int characterCount = 0;
@@ -319,7 +319,7 @@ namespace Arx.DocSearch.MultiCore
 							matchLines.Add(i, matchLine);
 							matchCount++;
 						}
-						//Debug.WriteLine(string.Format("SearchDocument: docId={0} lines[{1}]={2} lineRate={3} matchWords={4} matchCount={5}", docId, i, lines[i], lineRate, matchWords, matchCount));
+						if (0 == docId && i == 28) Debug.WriteLine(string.Format("SearchDocument: docId={0} lines[{1}]={2} lineRate={3} matchWords={4} matchCount={5}", docId, i, lines[i], lineRate, matchWords, matchCount));
 					}
 					else
 					{
@@ -355,6 +355,7 @@ namespace Arx.DocSearch.MultiCore
 				}
 				string src = aIsJp ? lineIdx : line;
 				rate = this.GetDiffRate(src, paragraphs[i], ref totalWords, ref matchWords);
+				if (28 == no && 28 == i) Debug.WriteLine(String.Format("rate={0},src={1}, paragraphs[{2}]={3}", rate, src, i, paragraphs[i]));
 				//指定一致率以上であればここで終了。
 				if (aRateLevel <= rate)
 				{
@@ -505,7 +506,7 @@ namespace Arx.DocSearch.MultiCore
 			return string.Empty;
 		}
 
-		private List<string> GetParagraphs(string fname)
+		private List<string> GetParagraphs(string fname, bool isJp)
 		{
 			string line;
 			List<string> paragraphs = new List<string>();
@@ -514,7 +515,7 @@ namespace Arx.DocSearch.MultiCore
 			{
 				while ((line = file.ReadLine()) != null)
 				{
-					if (this.isJp) line = TextConverter.SplitWords(line);
+					if (isJp) line = TextConverter.SplitWords(line);
 					paragraphs.Add(line);
 					i++;
 				}

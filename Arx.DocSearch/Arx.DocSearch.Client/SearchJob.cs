@@ -191,7 +191,7 @@ namespace Arx.DocSearch.Client
 		{
 			try
 			{
-				this.WriteLog("StartSearch");
+				this.WriteLog(string.Format("StartSearch SrcFile={0}", this.SrcFile));
 				if (!File.Exists(this.SrcFile))
 				{
 					return false;
@@ -206,6 +206,7 @@ namespace Arx.DocSearch.Client
 				this.matchList.Clear();
 				this.TextFileName = SearchJob.GetTextFileName(this.SrcFile);
 				this.IndexFileName = SearchJob.GetIndexFileName(this.SrcFile);
+				this.WriteLog(string.Format("StartSearch TextFileName={0} IndexFileName={1}", this.TextFileName, this.IndexFileName));
 				try
 				{
 					this.WriteLog("HCOperate Begin");
@@ -320,7 +321,7 @@ namespace Arx.DocSearch.Client
 		{
 			IntPtr address = Marshal.AllocHGlobal(bb.Length * sizeof(byte));
 			Marshal.Copy(bb, 0, address, bb.Length);
-			HCInterface.Multi.HCWriteMemoryEntry(description, (uint)address.ToInt32(), (uint)bb.Length);
+			HCInterface.Client.HCWriteMemoryEntry(description, (uint)address.ToInt32(), (uint)bb.Length);
 		}
 
 
@@ -359,11 +360,15 @@ namespace Arx.DocSearch.Client
 			try
 			{
 				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0}", BatchIndex));
-				int nodeIndex = HCInterface.Client.HCNodeIndexInList(HCInterface.Multi.HCGlobalNodeList(), Node);
+				int nodeIndex = HCInterface.Client.HCNodeIndexInList(HCInterface.Client.HCGlobalNodeList(), Node);
+				this.WriteLog(string.Format("DoOnStartExecute nodeIndex={0}", nodeIndex));
 				HCInterface.Client.HCClearDescription(Description);
 				HCInterface.Client.HCWriteAnsiStringEntry(Description, this.TextFileName);
+				this.WriteLog(string.Format("DoOnStartExecute TextFileName={0}", TextFileName));
 				HCInterface.Client.HCWriteAnsiStringEntry(Description, this.IndexFileName);
+				this.WriteLog(string.Format("DoOnStartExecute IndexFileName={0}", IndexFileName));
 				HCInterface.Client.HCWriteAnsiStringEntry(Description, this.docs[BatchIndex - 1]);
+				this.WriteLog(string.Format("DoOnStartExecute docName={0}", this.docs[BatchIndex - 1]));
 				HCInterface.Client.HCWriteLongEntry(Description, BatchIndex - 1);
 				HCInterface.Client.HCWriteLongEntry(Description, ConvertEx.GetInt(this.WordCount));
 				HCInterface.Client.HCWriteLongEntry(Description, this.roughLines);
@@ -379,6 +384,7 @@ namespace Arx.DocSearch.Client
 						lines.Add(line);
 					}
 				}
+				this.WriteLog(string.Format("DoOnStartExecute lines.Count={0}  TextFileName={1} Exists={2}", lines.Count, this.TextFileName, File.Exists(this.TextFileName)));
 				using (StreamReader file = new StreamReader(this.IndexFileName))
 				{
 					string line;
@@ -389,9 +395,10 @@ namespace Arx.DocSearch.Client
 				}
 				byte[] bLines = this.SerializeObject(lines);
 				byte[] binesIdx = this.SerializeObject(linesIdx);
+				this.WriteLog(string.Format("DoOnStartExecute bLines.Length={0}", bLines.Length));
 				//バイト配列のサイズをHCに登録する
-				HCInterface.Multi.HCWriteLongEntry(Description, (int)bLines.Length);
-				HCInterface.Multi.HCWriteLongEntry(Description, (int)binesIdx.Length);
+				HCInterface.Client.HCWriteLongEntry(Description, (int)bLines.Length);
+				HCInterface.Client.HCWriteLongEntry(Description, (int)binesIdx.Length);
 				//バイト配列をHCに登録する
 				this.HCWriteMemory(Description, bLines);
 				this.HCWriteMemory(Description, binesIdx);
