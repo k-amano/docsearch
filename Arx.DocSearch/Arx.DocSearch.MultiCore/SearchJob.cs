@@ -70,7 +70,7 @@ namespace Arx.DocSearch.MultiCore
 		private bool Initialized;
 		private double[] AgentProgressArray;
 		private bool[] AgentInterruptedArray;
-
+		private List<int>[] dataPacks;
 		private string TextFileName;
 		private string IndexFileName;
 		private THCGetMemoryEvent DOnGetMemory;
@@ -223,6 +223,8 @@ namespace Arx.DocSearch.MultiCore
 				this.matchList.Clear();
 				this.TextFileName = SearchJob.GetTextFileName(this.SrcFile);
 				this.IndexFileName = SearchJob.GetIndexFileName(this.SrcFile);
+				this.dataPacks = this.getDataPack(10);
+				Debug.WriteLine(String.Format("StartSearch: dataPacks.Length={0}", this.dataPacks.Length));
 				try
 				{
 					this.WriteLog("HCOperate Begin");
@@ -606,12 +608,21 @@ namespace Arx.DocSearch.MultiCore
 			try
 			{
 				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0}", BatchIndex));
+				List<int> dataPack = new List<int>();
+				if (BatchIndex <= this.dataPacks.Length) dataPack = this.dataPacks[BatchIndex - 1];
+				List<string> targetDocs = new List<string>();
+				for (int i = 0; i < dataPack.Count; i++)
+				{
+					int index = dataPack[i];
+					if (index < this.docs.Count) targetDocs.Add(this.docs[index]);
+					this.WriteLog(string.Format("this.docs[{0}]={1}", index, this.docs[index]));
+				}
+
 				int nodeIndex = HCInterface.Multi.HCNodeIndexInList(HCInterface.Multi.HCGlobalNodeList(), Node);
 				HCInterface.Multi.HCClearDescription(Description);
 				HCInterface.Multi.HCWriteAnsiStringEntry(Description, this.TextFileName);
 				HCInterface.Multi.HCWriteAnsiStringEntry(Description, this.IndexFileName);
-				HCInterface.Multi.HCWriteAnsiStringEntry(Description, this.docs[BatchIndex - 1]);
-				HCInterface.Multi.HCWriteLongEntry(Description, BatchIndex - 1);
+				//HCInterface.Multi.HCWriteLongEntry(Description, BatchIndex - 1);
 				HCInterface.Multi.HCWriteLongEntry(Description, ConvertEx.GetInt(this.WordCount));
 				HCInterface.Multi.HCWriteLongEntry(Description, this.roughLines);
 				HCInterface.Multi.HCWriteDoubleEntry(Description, this.rateLevel);
@@ -634,12 +645,18 @@ namespace Arx.DocSearch.MultiCore
 						linesIdx.Add(line);
 					}
 				}
+				byte[] bdataPack = this.SerializeObject(dataPack);
+				byte[] btargetDocs = this.SerializeObject(targetDocs);
 				byte[] bLines = this.SerializeObject(lines);
 				byte[] binesIdx = this.SerializeObject(linesIdx);
 				//バイト配列のサイズをHCに登録する
+				HCInterface.Multi.HCWriteLongEntry(Description, (int)bdataPack.Length);
+				HCInterface.Multi.HCWriteLongEntry(Description, (int)btargetDocs.Length);
 				HCInterface.Multi.HCWriteLongEntry(Description, (int)bLines.Length);
 				HCInterface.Multi.HCWriteLongEntry(Description, (int)binesIdx.Length);
 				//バイト配列をHCに登録する
+				this.HCWriteMemory(Description, bdataPack);
+				this.HCWriteMemory(Description, btargetDocs);
 				this.HCWriteMemory(Description, bLines);
 				this.HCWriteMemory(Description, binesIdx);
 				this.mainForm.UpdateProgressText(string.Format("{0} 検索を開始しました。", this.docs[BatchIndex - 1]));
@@ -660,30 +677,39 @@ namespace Arx.DocSearch.MultiCore
 				try
 				{
 					//文書番号をHCから取得する
-					int index = HCInterface.Multi.HCReadLongEntry(Description);
+					//int index = HCInterface.Multi.HCReadLongEntry(Description);
 					//this.WriteLog(string.Format("[{0}] DoOnFinishExecute BatchIndex={1} index={2} doc={3}", DateTime.Now, BatchIndex, index, this.docs[BatchIndex - 1]));
 					//バイト配列のサイズをHCから取得する
-					int matchLinesLength = HCInterface.Multi.HCReadLongEntry(Description);
+					int dataPackLength = HCInterface.Multi.HCReadLongEntry(Description);
+					int mlListLength = HCInterface.Multi.HCReadLongEntry(Description);
+					int mdListLength = HCInterface.Multi.HCReadLongEntry(Description);
 					//this.WriteLog(string.Format("[{0}] DoOnFinishExecute matchLinesLength={1} doc={2}", DateTime.Now, matchLinesLength, this.docs[BatchIndex - 1]));
-					int matchDocumentLength = HCInterface.Multi.HCReadLongEntry(Description);
 					//バイト配列をHCから取得する
-					byte[] bMatchLines = this.HCReadMemory(Description, matchLinesLength);
+					byte[] bdataPack = this.HCReadMemory(Description, dataPackLength);
+					byte[] bmlList = this.HCReadMemory(Description, mlListLength);
+					byte[] bmdList = this.HCReadMemory(Description, mdListLength);
+					//バイト配列を検索結果インスタンスにデシリアライズする
+					List<int> dataPack = (this.DeserializeObject(bdataPack)) as List<int>;
+					List<Dictionary<int, MatchLine>> mlList = (this.DeserializeObject(bmlList)) as List<Dictionary<int, MatchLine>>;
+					List<MatchDocument> mdList = (this.DeserializeObject(bmdList)) as List<MatchDocument>;
 					//this.WriteLog(string.Format("[{0}] DoOnFinishExecute bMatchLines.Length={1} doc={2}", DateTime.Now, bMatchLines.Length, this.docs[BatchIndex - 1]));
-					byte[] bMatchDocument = this.HCReadMemory(Description, matchDocumentLength);
-					if (0 < bMatchLines.Length && 0 < bMatchDocument.Length)
+					for (int i = 0; i < dataPack.Count; i++)
 					{
-						//バイト配列を検索結果インスタンスにデシリアライズする
-						Dictionary<int, MatchLine> matchLines = (this.DeserializeObject(bMatchLines)) as Dictionary<int, MatchLine>;
-						//this.WriteLog(string.Format("DoOnFinishExecute matchLines.Count={0} doc={1}", matchLines.Count, this.docs[BatchIndex - 1]));
-						MatchDocument md = (this.DeserializeObject(bMatchDocument)) as MatchDocument;
-						//デシリアライズしたインスタンスをリストに追加する。
-						this.matchList.Add(md);
-						this.MatchLinesTable.Add(index, matchLines);
-						this.mainForm.UpdateProgressText(string.Format("{0} 検索を完了しました。", this.docs[BatchIndex - 1]));
-					}
-					else
-					{
-						this.WriteLog(string.Format("DoOnFinishExecute matchLines is null doc={0}", this.docs[BatchIndex - 1]));
+						int index = dataPack[i];
+						Debug.WriteLine(String.Format("DoOnFinishExecute: index={0}", index));
+						if (i < mlList.Count && i < mdList.Count)
+						{
+							Dictionary<int, MatchLine> matchLines = mlList[i];
+							MatchDocument md = mdList[i];
+							//デシリアライズしたインスタンスをリストに追加する。
+							this.matchList.Add(md);
+							this.MatchLinesTable.Add(index, matchLines);
+							this.mainForm.UpdateProgressText(string.Format("{0} 検索を完了しました。", this.docs[index]));
+						}
+						else
+						{
+							this.WriteLog(string.Format("DoOnFinishExecute matchLines is null doc={0}", this.docs[index]));
+						}
 					}
 					this.showProgress();
 				}
@@ -709,57 +735,77 @@ namespace Arx.DocSearch.MultiCore
 
 		private void DoOnExecuteTask(int SlotIndex, uint Description)
 		{
-			this.WriteLog("DoOnExecuteTask");
-			//検索テキストファイル名をHCから取得する
-			string textFile = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} textFile={1}", SlotIndex, textFile));
-			//検索インデックスファイル名をHCから取得する
-			string indexFile = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} indexFile={1}", SlotIndex, indexFile));
-			//文書名をHCから取得する
-			string docName = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} srcFile={1} docName={2}", SlotIndex, srcFile, docName));
-			//文書番号をHCから取得する
-			int index = HCInterface.Multi.HCReadLongEntry(Description);
-			int aMinWords = HCInterface.Multi.HCReadLongEntry(Description);
-			//string wordCount = HCInterface.Multi.HCReadAnsiStringEntry(Description);
-			int aRoughLines = HCInterface.Multi.HCReadLongEntry(Description);
-			double aRateLevel = HCInterface.Multi.HCReadDoubleEntry(Description);
-			bool  aIsJp = HCInterface.Multi.HCReadBoolEntry(Description);
-			//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0}, index={1}, aMinWords={2}, aRoughLines={3}, aRateLevel={4}, aIsJp={5}", SlotIndex, index, aMinWords, aRoughLines, aRateLevel, aIsJp));
-			//バイト配列のサイズをHCから取得する
-			int linesLength = HCInterface.Multi.HCReadLongEntry(Description);
-			int linesIndxLength = HCInterface.Multi.HCReadLongEntry(Description);
-			//バイト配列をHCから取得する
-			byte[] bLines = this.HCReadMemory(Description, linesLength);
-			byte[] bLinesIdx = this.HCReadMemory(Description, linesIndxLength);
-			//バイト配列を検索結果インスタンスにデシリアライズする
-			List<string> lines = (this.DeserializeObject(bLines)) as List<string>;
-			List<string> linesIdx = (this.DeserializeObject(bLinesIdx)) as List<string>;
-			byte[] bMatchLines = new byte[0];
-			byte[] bMatchDocument = new byte[0];
-			if (File.Exists(textFile) && File.Exists(indexFile) && File.Exists(docName))
+			try
 			{
-				int matchCount = 0;
-				double rate = 0D;
-				//検索結果インスタンスを取得する
-				Dictionary<int, MatchLine> matchLines = this.SearchDocument(docName, index, ref matchCount, ref rate, aMinWords, aRoughLines, aRateLevel, aIsJp, lines, linesIdx);
-				//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} matchLines.Count={1} matchCount=[2]", SlotIndex, matchLines.Count, matchCount));
-				MatchDocument md = new MatchDocument(rate, matchCount, docName, index);
+				this.WriteLog("DoOnExecuteTask");
+				//検索テキストファイル名をHCから取得する
+				string textFile = HCInterface.Multi.HCReadAnsiStringEntry(Description);
+				//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} textFile={1}", SlotIndex, textFile));
+				//検索インデックスファイル名をHCから取得する
+				string indexFile = HCInterface.Multi.HCReadAnsiStringEntry(Description);
+				//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} indexFile={1}", SlotIndex, indexFile));
+				//データパック番号をHCから取得する
+				//int index = HCInterface.Agent.HCReadLongEntry(Description);
+				int aMinWords = HCInterface.Multi.HCReadLongEntry(Description);
+				//string wordCount = HCInterface.Multi.HCReadAnsiStringEntry(Description);
+				int aRoughLines = HCInterface.Multi.HCReadLongEntry(Description);
+				double aRateLevel = HCInterface.Multi.HCReadDoubleEntry(Description);
+				bool aIsJp = HCInterface.Multi.HCReadBoolEntry(Description);
+				//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0}, index={1}, aMinWords={2}, aRoughLines={3}, aRateLevel={4}, aIsJp={5}", SlotIndex, index, aMinWords, aRoughLines, aRateLevel, aIsJp));
+				//バイト配列のサイズをHCから取得する
+				int dataPackLength = HCInterface.Multi.HCReadLongEntry(Description);
+				int targetDocsLength = HCInterface.Multi.HCReadLongEntry(Description);
+				int linesLength = HCInterface.Multi.HCReadLongEntry(Description);
+				int linesIndxLength = HCInterface.Multi.HCReadLongEntry(Description);
+				//バイト配列をHCから取得する
+				byte[] bdataPack = this.HCReadMemory(Description, dataPackLength);
+				byte[] btargetDocs = this.HCReadMemory(Description, targetDocsLength);
+				byte[] bLines = this.HCReadMemory(Description, linesLength);
+				byte[] bLinesIdx = this.HCReadMemory(Description, linesIndxLength);
+				//バイト配列を検索結果インスタンスにデシリアライズする
+				List<int> dataPack = (this.DeserializeObject(bdataPack)) as List<int>;
+				List<string> targetDocs = (this.DeserializeObject(btargetDocs)) as List<string>;
+				List<string> lines = (this.DeserializeObject(bLines)) as List<string>;
+				List<string> linesIdx = (this.DeserializeObject(bLinesIdx)) as List<string>;
+				List<Dictionary<int, MatchLine>> mlList = new List<Dictionary<int, MatchLine>>();
+				List<MatchDocument> mdList = new List<MatchDocument>();
+				Debug.WriteLine(String.Format("DoOnExecuteTask: dataPackLength={0} bdataPack.Length={1}, dataPack.Count={2}, targetDocs.Count={2}", dataPackLength, bdataPack.Length, dataPack.Count, targetDocs.Count));
+				for (int i = 0; i < dataPack.Count && i < targetDocs.Count; i++)
+				{
+					int index = dataPack[i];
+					string docName = targetDocs[i];
+
+					if (File.Exists(textFile) && File.Exists(indexFile) && File.Exists(docName))
+					{
+						int matchCount = 0;
+						double rate = 0D;
+						//検索結果インスタンスを取得する
+						Dictionary<int, MatchLine> matchLines = this.SearchDocument(docName, index, ref matchCount, ref rate, aMinWords, aRoughLines, aRateLevel, aIsJp, lines, linesIdx);
+						//this.WriteLog(string.Format("DoOnExecuteTask SlotIndex={0} matchLines.Count={1} matchCount=[2]", SlotIndex, matchLines.Count, matchCount));
+						MatchDocument md = new MatchDocument(rate, matchCount, docName, index);
+						mlList.Add(matchLines);
+						mdList.Add(md);
+					}
+				}
 				//検索結果インスタンスをバイト配列にシリアライズする
-				bMatchLines = this.SerializeObject(matchLines);
-				this.WriteLog(string.Format("DoOnExecuteTask  bMatchLines.Length={0}", bMatchLines.Length));
-				bMatchDocument = this.SerializeObject(md);
+				byte[] bmlList = this.SerializeObject(mlList);
+				byte[] bmdList = this.SerializeObject(mdList);
+				//文書番号をHCに登録する
+				//HCInterface.Multi.HCWriteLongEntry(Description, index);
+				//バイト配列のサイズをHCに登録する
+				HCInterface.Multi.HCWriteLongEntry(Description, (int)bdataPack.Length);
+				HCInterface.Multi.HCWriteLongEntry(Description, (int)bmlList.Length);
+				HCInterface.Multi.HCWriteLongEntry(Description, (int)bmdList.Length);
+				//バイト配列をHCに登録する
+				this.HCWriteMemory(Description, bdataPack);
+				this.HCWriteMemory(Description, bmlList);
+				this.HCWriteMemory(Description, bmdList);
+				this.WriteLog("DoOnExecuteTask Finished");
 			}
-			//文書番号をHCに登録する
-			HCInterface.Multi.HCWriteLongEntry(Description, index);
-			//バイト配列のサイズをHCに登録する
-			HCInterface.Multi.HCWriteLongEntry(Description, (int)bMatchLines.Length);
-			HCInterface.Multi.HCWriteLongEntry(Description, (int)bMatchDocument.Length);
-			//バイト配列をHCに登録する
-			this.HCWriteMemory(Description, bMatchLines);
-			this.HCWriteMemory(Description, bMatchDocument);
-			this.WriteLog("DoOnExecuteTask Finished");
+			catch (Exception e)
+			{
+				Debug.WriteLine(e.Message + e.StackTrace);
+			}
 		}
 
 		private void DoOnGetProgress(int SlotIndex, ref double Progress)
@@ -791,6 +837,24 @@ namespace Arx.DocSearch.MultiCore
 				this.AgentProgressArray[SlotIndex] = 0;
 				this.AgentInterruptedArray[SlotIndex] = false;
 			}
+		}
+
+		private List<int>[] getDataPack(int packCount)
+		{
+			if (this.docs.Count < packCount) packCount = this.docs.Count;
+			List<int>[] dataPacks = new List<int>[packCount];
+			for (int i = 0; i < packCount; i++)
+			{
+				List<int> pack = new List<int>();
+				dataPacks[i] = pack;
+			}
+			Random r = new System.Random();
+			for (int i = 0; i < this.docs.Count; i++)
+			{
+				int n = r.Next(0, packCount - 1);
+				dataPacks[n].Add(i);
+			}
+			return dataPacks;
 		}
 		#endregion
 	}
