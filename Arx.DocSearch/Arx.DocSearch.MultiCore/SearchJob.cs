@@ -289,7 +289,7 @@ namespace Arx.DocSearch.MultiCore
 			int pos = 0;
 			int linesCount = lines.Count;
 #if DEBUG
-			if (TEST_MAX_LINES < linesCount) linesCount = TEST_MAX_LINES;
+			//if (TEST_MAX_LINES < linesCount) linesCount = TEST_MAX_LINES;
 #endif
 			if (linesIdx.Count < linesCount) linesCount = linesIdx.Count;
 			this.WriteLog(string.Format("SearchDocument docId={0} linesCount={1}", docId, linesCount));
@@ -321,7 +321,7 @@ namespace Arx.DocSearch.MultiCore
 							matchLines.Add(i, matchLine);
 							matchCount++;
 						}
-						if (0 == docId && i == 28) Debug.WriteLine(string.Format("SearchDocument: docId={0} lines[{1}]={2} lineRate={3} matchWords={4} matchCount={5}", docId, i, lines[i], lineRate, matchWords, matchCount));
+						if (0 == docId && 681==i) Debug.WriteLine(string.Format("SearchDocument: docId={0} lines[{1}]={2} lineRate={3} matchWords={4} matchCount={5}", docId, i, lines[i], lineRate, matchWords, matchCount));
 					}
 					else
 					{
@@ -348,18 +348,20 @@ namespace Arx.DocSearch.MultiCore
 			if (words.Length < aMinWords) return 0;
 			totalCount++;
 			double rate = 0;
+			if (681 == no) Debug.WriteLine(String.Format("no={0},pos={1}, paragraphs.Count={2}", no, pos, paragraphs.Count));
 			for (int i = pos; i < paragraphs.Count; i++)
 			{
 				if (string.IsNullOrEmpty(paragraphs[i])) continue;
 				if (targetLines.Contains(i))
 				{
+					//if (681 == no) Debug.WriteLine(String.Format("targetLines.Contains {0}", i));
 					continue;
 				}
 				string src = aIsJp ? lineIdx : line;
 				rate = this.GetDiffRate(src, paragraphs[i], ref totalWords, ref matchWords);
-				if (28 == no && 28 == i) Debug.WriteLine(String.Format("rate={0},src={1}, paragraphs[{2}]={3}", rate, src, i, paragraphs[i]));
+				if (681 == no) Debug.WriteLine(String.Format("rate={0},aRateLevel={1},src={2},\n paragraphs[{3}]={4}", rate, aRateLevel, src, i, paragraphs[i]));
 				//指定一致率以上であればここで終了。
-				if (aRateLevel <= rate)
+				if (aRateLevel <= rate && 0 < rate)
 				{
 					pos = i + 1;
 					targetLine = i;

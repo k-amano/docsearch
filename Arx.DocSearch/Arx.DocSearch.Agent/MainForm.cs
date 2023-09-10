@@ -6,6 +6,10 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Arx.DocSearch.Util;
+using System.Reflection;
+using System.Diagnostics;
+using Xyn.Util;
+using System.Text;
 
 namespace Arx.DocSearch.Agent
 {
@@ -16,11 +20,16 @@ namespace Arx.DocSearch.Agent
 			this.logs = new List<string>();
 			InitializeComponent();
 			this.timer1.Interval = 5000;
+			this.mainProgram = "";
+			this.programNo = 0;
+            this.StartSubPrograms();
 		}
 
 		private SearchJob job;
 		private const string CRLF = "\r\n";
 		private List<string> logs;
+		private string mainProgram;
+		private int programNo;
 		delegate void AppendTextCallback(string text);
 
 		private void onLoad(object sender, EventArgs e)
@@ -48,6 +57,7 @@ namespace Arx.DocSearch.Agent
 		private void timer1_Tick(object sender, EventArgs e)
 		{
 			this.WriteErrorLog();
+			if (1 < this.programNo && !string.IsNullOrEmpty(this.mainProgram) && !this.HasProcessByFileName(this.mainProgram)) this.Close();
 		}
 
 		private int GetUserIndexFromCommandLine()
@@ -74,7 +84,7 @@ namespace Arx.DocSearch.Agent
 			}
 			else
 			{
-				string text = string.Format("[{0}] {1}{2}", DateTime.Now, Log, CRLF);
+				string text = string.Format("[{0:yyyyMMdd HHmmss FFF}] {1}{2}", DateTime.Now, Log, CRLF);
 				this.textBox.AppendText(text);
 				this.logs.Add(text);
 				if (this.textBox.Lines.Length > 400)
@@ -89,7 +99,8 @@ namespace Arx.DocSearch.Agent
 		{
 			if (0 == this.logs.Count) return;
 			string Log = string.Join("\r\n", this.logs.ToArray());
-			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log2");
+			string appName = Path.GetFileNameWithoutExtension(Assembly.GetExecutingAssembly().Location);
+			string path = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "log_" + appName);
 			ErrorLog.Instance.WriteErrorLog(path, Log);
 			this.logs.Clear();
 		}
@@ -116,5 +127,81 @@ namespace Arx.DocSearch.Agent
 			}
 		}
 
-	}
+		private void StartSubPrograms()
+		{
+			var assembly = System.Reflection.Assembly.GetEntryAssembly();
+			// Get the full path of the assembly
+			string filePath = assembly.Location;
+			string dir = Path.GetDirectoryName(filePath);
+			string fileName = Path.GetFileNameWithoutExtension(filePath);
+			string[] parts = fileName.Split('_');
+			if (1 < parts.Length) {
+				int len = parts.Length;
+				this.programNo  = ConvertEx.GetInt(parts[len - 2]);
+                int total = ConvertEx.GetInt(parts[len - 1]);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < len - 2; i++)
+                {
+                    sb.Append(parts[i]);
+                }
+                this.mainProgram = string.Format("{0}_1_{1}.exe", sb.ToString(), total);
+                if (1 == programNo && programNo < total)
+                {
+                    List<string> files = new List<string>();
+                    for (int i = 2; i <= total; i++)
+                    {
+                        string pname = Path.Combine(dir, string.Format("{0}_{1}_{2}.exe", sb.ToString(), i, total));
+                        if (File.Exists(pname)) files.Add(pname);
+                        else
+                        {
+                            MessageBox.Show(string.Format("プログラム'{0}'が存在しません。", pname),
+                                "エラー",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error);
+                            return;
+                        }
+                    }
+					foreach(string file in files) {
+                        Process.Start(file);
+                    }
+                }
+            }
+		}
+
+        /// <summary>
+        /// 指定した実行ファイル名のプロセスをすべて取得する。
+        /// </summary>
+        /// <param name="searchFileName">検索する実行ファイル名。</param>
+        /// <returns>プロセスが存在の有無。</returns>
+        private bool HasProcessByFileName(string searchFileName)
+        {
+            searchFileName = searchFileName.ToLower();
+            //すべてのプロセスを列挙する
+            foreach (Process p in Process.GetProcesses())
+            {
+                string fileName;
+                try
+                {
+                    //メインモジュールのパスを取得する
+                    fileName = p.MainModule.FileName;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    //MainModuleの取得に失敗
+                    fileName = "";
+                }
+                if (0 < fileName.Length)
+                {
+                    //ファイル名の部分を取得する
+                    fileName = System.IO.Path.GetFileName(fileName);
+                    //探しているファイル名と一致した時、真を返す
+                    if (searchFileName.Equals(fileName.ToLower()))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+    }
 }
