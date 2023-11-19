@@ -16,6 +16,7 @@ using Xyn.Util;
 using ConvertEx = Xyn.Util.ConvertEx;
 using HCInterface;
 using Arx.DocSearch.Util;
+using DiffPlex.Model;
 
 namespace Arx.DocSearch.Client
 {
@@ -30,7 +31,8 @@ namespace Arx.DocSearch.Client
 			this.mainForm = mainForm;
 			this.docs = new List<string>();
 			this.startTime = DateTime.Now;
-			this.matchList = new List<MatchDocument>();
+            this.startSearchTime = DateTime.Now;
+            this.matchList = new List<MatchDocument>();
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
 			this.DOnGetMemory = new THCGetMemoryEvent(this.DoOnGetMemory);
 			this.DOnFreeMemory = new THCFreeMemoryEvent(this.DoOnFreeMemory);
@@ -48,7 +50,8 @@ namespace Arx.DocSearch.Client
 		private MainForm mainForm;
 		private List<string> docs;
 		private DateTime startTime;
-		private int roughLines;
+        private DateTime startSearchTime;
+        private int roughLines;
 		private List<MatchDocument> matchList;
 		private string srcFile;
 		private int minWords;
@@ -194,7 +197,8 @@ namespace Arx.DocSearch.Client
 			try
 			{
 				this.WriteLog(string.Format("StartSearch SrcFile={0}", this.SrcFile));
-				if (!File.Exists(this.SrcFile))
+                this.startSearchTime = DateTime.Now;
+                if (!File.Exists(this.SrcFile))
 				{
 					return false;
 				}
@@ -249,14 +253,17 @@ namespace Arx.DocSearch.Client
 			return true;
 		}
 
-		private void showProgress()
+        public void showProgress()
 		{
 			double Progress = 0;
 			if (!this.Processing)
 			{
 				this.Processing = true;
 				HCInterface.Client.HCGetProgress(ref Progress);
-				this.mainForm.UpdateMessageLabel(string.Format("{0} 文書中 {1:0.00}% 完了。開始 {2} 現在 {3}。", this.docs.Count, Progress * 100, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()));
+                TimeSpan ts = DateTime.Now - this.startSearchTime;
+                double progress2 = ts.TotalSeconds / 1800;
+				if (Progress < 0.05 && Progress < progress2 && progress2 < 1) Progress = progress2;
+                this.mainForm.UpdateMessageLabel(string.Format("{0} 文書中 {1:0.00}% 完了。開始 {2} 現在 {3}。", this.docs.Count, Progress * 100, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()));
 				this.Processing = false;
 			}
 		}
@@ -344,8 +351,9 @@ namespace Arx.DocSearch.Client
 
 		private void DoOnStartRace(int Code, ref int BatchCount)
 		{
-			BatchCount = packCount;
-			this.WriteLog(string.Format("DoOnStartRace Code={0} BatchCount={1}", Code, BatchCount));
+            if (this.docs.Count < packCount) BatchCount = this.docs.Count;
+            else BatchCount = packCount;
+            this.WriteLog(string.Format("DoOnStartRace Code={0} BatchCount={1}", Code, BatchCount));
 		}
 
 
@@ -362,15 +370,14 @@ namespace Arx.DocSearch.Client
 		{
 			try
 			{
-				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0}", BatchIndex));
+				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0} dataPacks.Length={1} docs.Count={2}", BatchIndex, this.dataPacks.Length, this.docs.Count));
 				List<int> dataPack = new List<int>();
 				if (BatchIndex <= this.dataPacks.Length) dataPack = this.dataPacks[BatchIndex - 1];
 				List<string> targetDocs = new List<string>();
 				for (int i = 0; i < dataPack.Count; i++)
 				{
 					int index = dataPack[i];
-					if (index < this.docs.Count) targetDocs.Add(this.docs[index]);
-					this.WriteLog(string.Format("this.docs[{0}]={1}", index, this.docs[index]));
+                    if (index < this.docs.Count) targetDocs.Add(this.docs[index]);
 				}
 				int nodeIndex = HCInterface.Client.HCNodeIndexInList(HCInterface.Client.HCGlobalNodeList(), Node);
 				HCInterface.Client.HCClearDescription(Description);

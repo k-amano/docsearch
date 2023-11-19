@@ -19,6 +19,7 @@ using NPOI.SS.UserModel;
 using NPOI.HSSF.Util;
 using View = System.Windows.Forms.View;
 using BorderStyle = NPOI.SS.UserModel.BorderStyle;
+using System.Windows.Forms.VisualStyles;
 
 namespace Arx.DocSearch.Client
 {
@@ -38,6 +39,7 @@ namespace Arx.DocSearch.Client
 			this.matchLinesTable = new Dictionary<int, Dictionary<int, MatchLine>>();
 			this.reservationList = new List<Reservation>();
 			this.timer1.Interval = 5000;
+			this.isProgressing = false;
 		}
 		#endregion
 
@@ -54,6 +56,7 @@ namespace Arx.DocSearch.Client
 		private SearchJob job;
 		private string xlsdir;
 		private List<string> logs;
+		private bool isProgressing;
 		#endregion
 
 		#region Property
@@ -212,7 +215,7 @@ namespace Arx.DocSearch.Client
 			this.countLabel.Text = string.Empty;
 			this.GetTotalCount();
 			this.timer1.Start();
-			this.job = new SearchJob(this);
+			//this.job = new SearchJob(this);
 		}
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -230,7 +233,7 @@ namespace Arx.DocSearch.Client
 				this.config.SaveSettings(this.configFile);
 				this.WriteLog(string.Format("Conifg File was saved.  Xlsdir={0}", this.config.Xlsdir));
 			}
-			this.job.Dispose();
+			//this.job.Dispose();
 			this.WriteErrorLog();
 		}
 
@@ -363,6 +366,7 @@ namespace Arx.DocSearch.Client
 		private void timer1_Tick(object sender, EventArgs e)
 		{
 			this.WriteErrorLog();
+			if (this.isProgressing && null != this.job) this.job.showProgress();
 		}
 
 		private void InitializeListView()
@@ -789,7 +793,9 @@ namespace Arx.DocSearch.Client
 				//Debug.WriteLine("Task begins ...");
 				foreach (Reservation r in this.reservationList)
 				{
-					//Debug.WriteLine(string.Format("r.SrcFile={0}", r.SrcFile));
+                    //Debug.WriteLine(string.Format("r.SrcFile={0}", r.SrcFile));
+                    bool result = false;
+                    this.isProgressing = true;
 					this.Invoke(
 						(MethodInvoker)delegate()
 						{
@@ -800,20 +806,25 @@ namespace Arx.DocSearch.Client
 					);
 					//Debug.WriteLine(string.Format("r.SrcFile={0}, this.SrcFile={1}", r.SrcFile, this.SrcFile));
 					List<string> docs = this.FindDocuments();
-					//using (SearchJob job = new SearchJob(this))
-					//{
-						job.Docs = docs;
-						job.SrcFile = r.SrcFile;
-						job.MinWords = this.MinWords;
-						job.RoughLines = ConvertEx.GetInt(this.RoughLines);
-						job.WordCount = this.WordCount;
-						job.IsJp = r.IsJp;
-						job.RateLevel = ConvertEx.GetDouble(this.rateText.Text) / 100;
-						if (!job.StartSearch()) break;
-						//job.StartSearch();
-					//}
-				}
-				this.reservationList.Clear();
+                    if (0 < docs.Count) {
+                        using (SearchJob job = new SearchJob(this))
+                        {
+                            job.Docs = docs;
+                            job.SrcFile = r.SrcFile;
+                            job.MinWords = this.MinWords;
+                            job.RoughLines = ConvertEx.GetInt(this.RoughLines);
+                            job.WordCount = this.WordCount;
+                            job.IsJp = r.IsJp;
+                            job.RateLevel = ConvertEx.GetDouble(this.rateText.Text) / 100;
+                            result = job.StartSearch();
+                        }
+                    }
+					if (!result) {
+						this.UpdateMessageLabel(r.SrcFile + "の検索に失敗しましたので処理を中止します。");
+						break;
+					}
+                }
+                this.reservationList.Clear();
 			});
 		}
 
@@ -856,6 +867,7 @@ namespace Arx.DocSearch.Client
 
 		public void FinishSearch(string message, Dictionary<int, Dictionary<int, MatchLine>> matchLinesTable, string srcFile)
 		{
+			this.isProgressing = false;
 			this.matchLinesTable = matchLinesTable;
 			this.Invoke(
 				(MethodInvoker)delegate()

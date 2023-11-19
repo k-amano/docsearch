@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Diagnostics;
 using Xyn.Util;
 using System.Text;
+//using static System.Net.WebRequestMethods;
 
 namespace Arx.DocSearch.Agent
 {
@@ -18,18 +19,23 @@ namespace Arx.DocSearch.Agent
 		public MainForm()
 		{
 			this.logs = new List<string>();
-			InitializeComponent();
+            this.subPrograms = new List<Process>();
+            InitializeComponent();
 			this.timer1.Interval = 5000;
 			this.mainProgram = "";
-			this.programNo = 0;
+            this.fileName = "";
+            this.programNo = 0;
             this.StartSubPrograms();
-		}
+            this.Text = string.Format("{0}(Agent{1})", this.Text, this.programNo);
+        }
 
 		private SearchJob job;
 		private const string CRLF = "\r\n";
 		private List<string> logs;
 		private string mainProgram;
-		private int programNo;
+        private string fileName;
+        private List<Process> subPrograms;
+        private int programNo;
 		delegate void AppendTextCallback(string text);
 
 		private void onLoad(object sender, EventArgs e)
@@ -38,7 +44,11 @@ namespace Arx.DocSearch.Agent
 			this.CleanFolder();
 			this.timer1.Start();
 			this.job = new SearchJob(this, userIndex);
-		}
+			if (1 != this.programNo)
+			{
+				this.WindowState = FormWindowState.Minimized;
+			}
+        }
 
 		private void onFormClosing(object sender, FormClosingEventArgs e)
 		{
@@ -46,6 +56,9 @@ namespace Arx.DocSearch.Agent
 			this.job.Dispose();
 			this.CleanFolder();
 			this.timer1.Stop();
+			if (1 == this.programNo) {
+                foreach (Process process in this.subPrograms) { process.Kill(); }
+            }
 		}
 
 		private void onResize(object sender, EventArgs e)
@@ -57,7 +70,7 @@ namespace Arx.DocSearch.Agent
 		private void timer1_Tick(object sender, EventArgs e)
 		{
 			this.WriteErrorLog();
-			if (1 < this.programNo && !string.IsNullOrEmpty(this.mainProgram) && !this.HasProcessByFileName(this.mainProgram)) this.Close();
+			//if (1 < this.programNo && !string.IsNullOrEmpty(this.mainProgram) && !this.HasProcessByFileName(this.mainProgram)) this.Close();
 		}
 
 		private int GetUserIndexFromCommandLine()
@@ -133,8 +146,8 @@ namespace Arx.DocSearch.Agent
 			// Get the full path of the assembly
 			string filePath = assembly.Location;
 			string dir = Path.GetDirectoryName(filePath);
-			string fileName = Path.GetFileNameWithoutExtension(filePath);
-			string[] parts = fileName.Split('_');
+			this.fileName = Path.GetFileNameWithoutExtension(filePath);
+			string[] parts = this.fileName.Split('_');
 			if (1 < parts.Length) {
 				int len = parts.Length;
 				this.programNo  = ConvertEx.GetInt(parts[len - 2]);
@@ -145,14 +158,14 @@ namespace Arx.DocSearch.Agent
                     sb.Append(parts[i]);
                 }
                 this.mainProgram = string.Format("{0}_1_{1}.exe", sb.ToString(), total);
+				List<string> files = new List<string>();
                 if (1 == programNo && programNo < total)
                 {
-                    List<string> files = new List<string>();
                     for (int i = 2; i <= total; i++)
                     {
                         string pname = Path.Combine(dir, string.Format("{0}_{1}_{2}.exe", sb.ToString(), i, total));
                         if (File.Exists(pname)) files.Add(pname);
-                        else
+                        else 
                         {
                             MessageBox.Show(string.Format("プログラム'{0}'が存在しません。", pname),
                                 "エラー",
@@ -162,18 +175,20 @@ namespace Arx.DocSearch.Agent
                         }
                     }
 					foreach(string file in files) {
-                        Process.Start(file);
+                        Process p = Process.Start(file);
+						this.subPrograms.Add(p);
                     }
                 }
             }
 		}
+
 
         /// <summary>
         /// 指定した実行ファイル名のプロセスをすべて取得する。
         /// </summary>
         /// <param name="searchFileName">検索する実行ファイル名。</param>
         /// <returns>プロセスが存在の有無。</returns>
-        private bool HasProcessByFileName(string searchFileName)
+        private Process GetProcessByFileName(string searchFileName)
         {
             searchFileName = searchFileName.ToLower();
             //すべてのプロセスを列挙する
@@ -197,11 +212,11 @@ namespace Arx.DocSearch.Agent
                     //探しているファイル名と一致した時、真を返す
                     if (searchFileName.Equals(fileName.ToLower()))
                     {
-                        return true;
+                        return p;
                     }
                 }
             }
-            return false;
+            return null;
         }
     }
 }
