@@ -40,7 +40,7 @@ namespace Arx.DocSearch.Client
 			this.reservationList = new List<Reservation>();
 			this.timer1.Interval = 5000;
 			this.isProgressing = false;
-		}
+        }
 		#endregion
 
 		#region フィールド
@@ -57,10 +57,11 @@ namespace Arx.DocSearch.Client
 		private string xlsdir;
 		private List<string> logs;
 		private bool isProgressing;
-		#endregion
+        private List<Process> agentPrograms;
+        #endregion
 
-		#region Property
-		public string UserAppDataPath
+        #region Property
+        public string UserAppDataPath
 		{
 			get
 			{
@@ -807,17 +808,20 @@ namespace Arx.DocSearch.Client
 					//Debug.WriteLine(string.Format("r.SrcFile={0}, this.SrcFile={1}", r.SrcFile, this.SrcFile));
 					List<string> docs = this.FindDocuments();
                     if (0 < docs.Count) {
+                        this.agentPrograms = new List<Process>();
+                        this.StartAgentPrograms();
                         using (SearchJob job = new SearchJob(this))
-                        {
-                            job.Docs = docs;
-                            job.SrcFile = r.SrcFile;
-                            job.MinWords = this.MinWords;
-                            job.RoughLines = ConvertEx.GetInt(this.RoughLines);
-                            job.WordCount = this.WordCount;
-                            job.IsJp = r.IsJp;
-                            job.RateLevel = ConvertEx.GetDouble(this.rateText.Text) / 100;
-                            result = job.StartSearch();
-                        }
+						{
+							job.Docs = docs;
+							job.SrcFile = r.SrcFile;
+							job.MinWords = this.MinWords;
+							job.RoughLines = ConvertEx.GetInt(this.RoughLines);
+							job.WordCount = this.WordCount;
+							job.IsJp = r.IsJp;
+							job.RateLevel = ConvertEx.GetDouble(this.rateText.Text) / 100;
+							result = job.StartSearch();
+						}
+                        foreach (Process process in this.agentPrograms) { process.Kill(); }
                     }
 					if (!result) {
 						this.UpdateMessageLabel(r.SrcFile + "の検索に失敗しましたので処理を中止します。");
@@ -1034,7 +1038,47 @@ namespace Arx.DocSearch.Client
 			this.logs.Clear();
 		}
 
-		#endregion
+        private void StartAgentPrograms()
+        {
+            var assembly = System.Reflection.Assembly.GetEntryAssembly();
+            // Get the full path of the assembly
+            string filePath = assembly.Location;
+            string dir = Path.GetDirectoryName(filePath);
+            string pname = Path.Combine(dir, "Arx.DocSearch.Agent_1_8.exe");
+			if (File.Exists(pname))
+			{
+                Process p = Process.Start(pname, "/IndexOfUser=01");
+                this.agentPrograms.Add(p);
+            }
+			else
+			{
+				MessageBox.Show(string.Format("プログラム'{0}'が存在しません。", pname),
+					"エラー",
+					MessageBoxButtons.OK,
+					MessageBoxIcon.Error);
+				return;
+			}
+			int total = 8;
+            for (int i = 2; i <= total; i++)
+            {
+                pname = Path.Combine(dir, string.Format("Arx.DocSearch.Agent_{0}_{1}.exe", i, total));
+				if (File.Exists(pname))
+				{
+					Process sub = Process.Start(pname);
+					this.agentPrograms.Add(sub);
+				}
+				else
+				{
+					MessageBox.Show(string.Format("プログラム'{0}'が存在しません。", pname),
+						"エラー",
+						MessageBoxButtons.OK,
+						MessageBoxIcon.Error);
+					return;
+				}
+            }
+        }
 
-	}
+        #endregion
+
+    }
 }

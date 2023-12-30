@@ -25,7 +25,7 @@ namespace Arx.DocSearch.Agent
 			this.mainProgram = "";
             this.fileName = "";
             this.programNo = 0;
-            this.StartSubPrograms();
+            //this.StartSubPrograms();
             this.Text = string.Format("{0}(Agent{1})", this.Text, this.programNo);
         }
 
@@ -56,9 +56,9 @@ namespace Arx.DocSearch.Agent
 			this.job.Dispose();
 			this.CleanFolder();
 			this.timer1.Stop();
-			if (1 == this.programNo) {
+			/*if (1 == this.programNo) {
                 foreach (Process process in this.subPrograms) { process.Kill(); }
-            }
+            }*/
 		}
 
 		private void onResize(object sender, EventArgs e)

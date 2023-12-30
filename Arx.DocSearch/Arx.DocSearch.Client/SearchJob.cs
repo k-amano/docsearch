@@ -439,7 +439,7 @@ namespace Arx.DocSearch.Client
 				{
 					//文書番号をHCから取得する
 					//int index = HCInterface.Client.HCReadLongEntry(Description);
-					//this.WriteLog(string.Format("[{0}] DoOnFinishExecute BatchIndex={1} index={2} doc={3}", DateTime.Now, BatchIndex, index, this.docs[BatchIndex - 1]));
+					this.WriteLog(string.Format("[{0}] DoOnFinishExecute BatchIndex={1} doc={2}", DateTime.Now, BatchIndex, this.docs[BatchIndex - 1]));
 					//バイト配列のサイズをHCから取得する
 					int dataPackLength = HCInterface.Client.HCReadLongEntry(Description);
 					int mlListLength = HCInterface.Client.HCReadLongEntry(Description);
@@ -478,7 +478,7 @@ namespace Arx.DocSearch.Client
 					this.WriteLog(e.Message + e.StackTrace);
 				}
 			}
-            Debug.WriteLine("DoOnFinishExecute end");
+            this.WriteLog("DoOnFinishExecute end");
         }
 
 		/* ノードイベント */
@@ -496,14 +496,21 @@ namespace Arx.DocSearch.Client
 
 		private void InitializeHC()
 		{
-			this.WriteLog("InitializeHC");
-			this.Processing = false;
-			this.Initialized = false;
-			HCInterface.Client.HCInitialize(UserIndex, this.DOnGetMemory,
-				this.DOnFreeMemory);
-			this.Initialized = true;
-			int NodeCount = HCInterface.Client.HCNodeCountInList(HCInterface.Client.HCGlobalNodeList());
-		}
+            try
+            {
+                this.WriteLog("InitializeHC");
+                this.Processing = false;
+                this.Initialized = false;
+                HCInterface.Client.HCInitialize(UserIndex, this.DOnGetMemory,
+                    this.DOnFreeMemory);
+                this.Initialized = true;
+                int NodeCount = HCInterface.Client.HCNodeCountInList(HCInterface.Client.HCGlobalNodeList());
+            }
+            catch (Exception e)
+            {
+                this.WriteLog(e.Message + e.StackTrace);
+            }
+        }
 		private List<int>[] getDataPack(int packCount)
 		{
 			if (this.docs.Count < packCount) packCount = this.docs.Count;

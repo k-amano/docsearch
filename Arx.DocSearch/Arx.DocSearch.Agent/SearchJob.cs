@@ -431,7 +431,7 @@ namespace Arx.DocSearch.Agent
 				List<string> linesIdx = (this.DeserializeObject(bLinesIdx)) as List<string>;
 				List<Dictionary<int, MatchLine>> mlList = new List<Dictionary<int, MatchLine>>();
 				List<MatchDocument> mdList = new List<MatchDocument>();
-				//Debug.WriteLine(String.Format("DoOnExecuteTask: dataPackLength={0} bdataPack.Length={1}, dataPack.Count={2}, targetDocs.Count={2}", dataPackLength, bdataPack.Length, dataPack.Count, targetDocs.Count));
+                this.WriteLog(String.Format("DoOnExecuteTask: dataPackLength={0} bdataPack.Length={1}, dataPack.Count={2}, targetDocs.Count={2}", dataPackLength, bdataPack.Length, dataPack.Count, targetDocs.Count));
 				for (int i = 0; i < dataPack.Count && i < targetDocs.Count; i++)
 				{
 					int index = dataPack[i];
