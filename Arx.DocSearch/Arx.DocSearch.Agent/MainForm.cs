@@ -25,7 +25,8 @@ namespace Arx.DocSearch.Agent
 			this.mainProgram = "";
             this.fileName = "";
             this.programNo = 0;
-            //this.StartSubPrograms();
+			//this.StartSubPrograms();
+			this.GetProgramNo();
             this.Text = string.Format("{0}(Agent{1})", this.Text, this.programNo);
         }
 
@@ -40,21 +41,31 @@ namespace Arx.DocSearch.Agent
 
 		private void onLoad(object sender, EventArgs e)
 		{
-			int userIndex = this.GetUserIndexFromCommandLine();
-			this.CleanFolder();
-			this.timer1.Start();
-			this.job = new SearchJob(this, userIndex);
-			if (1 != this.programNo)
-			{
-				this.WindowState = FormWindowState.Minimized;
-			}
+            try
+            {
+                int userIndex = this.GetUserIndexFromCommandLine();
+                //this.CleanFolder();
+                this.GetProgramNo();
+                this.timer1.Start();
+                this.job = new SearchJob(this, userIndex);
+                if (1 != this.programNo)
+                {
+                    this.WindowState = FormWindowState.Minimized;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                this.WriteLog(ex.Message + ex.StackTrace);
+            }
+
         }
 
 		private void onFormClosing(object sender, FormClosingEventArgs e)
 		{
 			this.WriteErrorLog();
 			this.job.Dispose();
-			this.CleanFolder();
+			//this.CleanFolder();
 			this.timer1.Stop();
 			/*if (1 == this.programNo) {
                 foreach (Process process in this.subPrograms) { process.Kill(); }
@@ -180,6 +191,20 @@ namespace Arx.DocSearch.Agent
                     }
                 }
             }
+		}
+		private void GetProgramNo()
+		{
+			var assembly = System.Reflection.Assembly.GetEntryAssembly();
+			// Get the full path of the assembly
+			string filePath = assembly.Location;
+			string dir = Path.GetDirectoryName(filePath);
+			this.fileName = Path.GetFileNameWithoutExtension(filePath);
+			string[] parts = this.fileName.Split('_');
+			if (1 < parts.Length)
+			{
+				int len = parts.Length;
+				this.programNo = ConvertEx.GetInt(parts[len - 2]);
+			}
 		}
 
 

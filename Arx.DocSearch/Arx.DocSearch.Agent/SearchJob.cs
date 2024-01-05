@@ -367,7 +367,8 @@ namespace Arx.DocSearch.Agent
 			HCInterface.Agent.HCReadMemoryEntry(description, (uint)address.ToInt32());
 			byte[] bb = new byte[length];
 			Marshal.Copy(address, bb, 0, length);
-			return bb;
+            Marshal.FreeHGlobal(address);
+            return bb;
 		}
 
 		private void HCWriteMemory(uint description, byte[] bb)
