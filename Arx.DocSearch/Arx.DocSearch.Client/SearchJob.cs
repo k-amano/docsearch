@@ -76,10 +76,12 @@ namespace Arx.DocSearch.Client
 		private THCExecuteEvent DOnFinishExecute;
 		public FileChoice fileChoice;
 		private object lockObject = new object();
-		#endregion
+        //二重解放を避けるためのフラグ
+        private bool disposedValue = false;
+        #endregion
 
-		#region Enum
-		public enum FileChoice
+        #region Enum
+        public enum FileChoice
 		{
 			TEXT_FILE, INDEX_FILE
 		}
@@ -183,14 +185,40 @@ namespace Arx.DocSearch.Client
 				isJp = value;
 			}
 		}
-		#endregion
+        #endregion
 
-		#region メソッド
-		public void Dispose() 
+        #region メソッド
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    //管理リソースの破棄処理をここに記述
+                }
+
+                //非管理リソースの破棄処理をここに記述
+
+                disposedValue = true;
+            }
+        }
+
+        // ファイナライザー
+        ~SearchJob()
+        {
+            Dispose(false);
+        }
+        public void Dispose() 
 		{
 			Debug.WriteLine("Dispose");
 			if (this.Initialized) HCInterface.Client.HCFinalize();
-		}
+            Dispose(true);
+
+            //ファイナライザーを呼ばない事を
+            //ガベージコレクションに指示する
+            GC.SuppressFinalize(this);
+        }
 
 		public bool StartSearch()
 		{
@@ -214,6 +242,7 @@ namespace Arx.DocSearch.Client
 				this.IndexFileName = SearchJob.GetIndexFileName(this.SrcFile);
 				this.dataPacks = this.getDataPack(packCount);
 				this.WriteLog(string.Format("StartSearch TextFileName={0} IndexFileName={1}", this.TextFileName, this.IndexFileName));
+				this.showMemory("StartSearch");
 				try
 				{
 					this.WriteLog("HCOperate Begin");
@@ -244,7 +273,8 @@ namespace Arx.DocSearch.Client
 					this.mainForm.updateListView(matchArray, true);
 				}
 				this.mainForm.FinishSearch(string.Format("{0} 文書中 100% 完了。開始 {1} 終了 {2}。", docs.Count, this.startTime.ToLongTimeString(), DateTime.Now.ToLongTimeString()), this.matchLinesTable, this.srcFile);
-			}
+                this.showMemory("StartSearch");
+            }
 			catch (Exception e)
 			{
 				this.WriteLog(e.Message + e.StackTrace);
@@ -372,7 +402,8 @@ namespace Arx.DocSearch.Client
 			try
 			{
 				this.WriteLog(string.Format("DoOnStartExecute BatchIndex={0} dataPacks.Length={1} docs.Count={2}", BatchIndex, this.dataPacks.Length, this.docs.Count));
-				List<int> dataPack = new List<int>();
+                this.showMemory("DoOnStartExecute1");
+                List<int> dataPack = new List<int>();
 				if (BatchIndex <= this.dataPacks.Length) dataPack = this.dataPacks[BatchIndex - 1];
 				List<string> targetDocs = new List<string>();
 				for (int i = 0; i < dataPack.Count; i++)
@@ -416,15 +447,19 @@ namespace Arx.DocSearch.Client
 				HCInterface.Client.HCWriteLongEntry(Description, (int)btargetDocs.Length);
 				HCInterface.Client.HCWriteLongEntry(Description, (int)bLines.Length);
 				HCInterface.Client.HCWriteLongEntry(Description, (int)binesIdx.Length);
-				//バイト配列をHCに登録する
-				this.HCWriteMemory(Description, bdataPack);
+                //バイト配列をHCに登録する
+                this.showMemory("DoOnStartExecute2");
+                this.HCWriteMemory(Description, bdataPack);
 				this.HCWriteMemory(Description, btargetDocs);
 				this.HCWriteMemory(Description, bLines);
 				this.HCWriteMemory(Description, binesIdx);
 				this.mainForm.UpdateProgressText(string.Format("{0} 検索を開始しました。", this.docs[BatchIndex - 1]));
 				this.showProgress();
 				this.WriteLog(string.Format("DoOnStartExecute Finished: BatchIndex={0}", BatchIndex));
-			}
+                this.showMemory("DoOnStartExecute3");
+                GC.Collect();
+                this.showMemory("DoOnStartExecute4");
+            }
 			catch (Exception e)
 			{
 				this.WriteLog(e.Message + e.StackTrace);
@@ -473,7 +508,10 @@ namespace Arx.DocSearch.Client
 						}
 					}
 					this.showProgress();
-				}
+                    this.showMemory("DoOnFinishExecute1");
+                    GC.Collect();
+                    this.showMemory("DoOnFinishExecute2");
+                }
 				catch (Exception e)
 				{
 					this.WriteLog(e.Message + e.StackTrace);
@@ -529,6 +567,19 @@ namespace Arx.DocSearch.Client
 			}
 			return dataPacks;
 		}
+
+		private void showMemory(string message) {
+            // 物理メモリ量 ex) 135,815,168
+            Console.WriteLine($"{message}:System.Environment.WorkingSet:{System.Environment.WorkingSet:N0}");
+            // Processインスタンスを取得
+            System.Diagnostics.Process proc = System.Diagnostics.Process.GetCurrentProcess();
+
+            // 物理メモリ量 ex) 136,282,112
+            //Console.WriteLine($"proc.WorkingSet64:{proc.WorkingSet64:N0}");
+            // 仮想メモリ量 ex) 290,201,600
+            //Console.WriteLine($"proc.VirtualMemorySize64:{proc.VirtualMemorySize64:N0}");
+
+        }
 		#endregion
 	}
 }
