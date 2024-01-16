@@ -1,6 +1,8 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33723.286
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch", "Arx.DocSearch\Arx.DocSearch.csproj", "{2611C76D-8497-4EDF-8A31-456DF6630056}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.MultiCore", "Arx.DocSearch.MultiCore\Arx.DocSearch.MultiCore.csproj", "{6FEE9A5A-75EC-4BF2-9C69-8BD97AE96F86}"
@@ -10,6 +12,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.Agent", "Arx.DocSearch.Agent\Arx.DocSearch.Agent.csproj", "{D95EAFA0-3BD2-40F7-8DAB-A6E8F129B0BB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.Util", "Arx.DocSearch.Util\Arx.DocSearch.Util.csproj", "{E026592A-E9E4-424F-9F6F-1ED85554630C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.ClientStarter", "Arx.DocSearch.ClientStarter\Arx.DocSearch.ClientStarter.csproj", "{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -71,6 +75,18 @@ Global
 		{E026592A-E9E4-424F-9F6F-1ED85554630C}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
 		{E026592A-E9E4-424F-9F6F-1ED85554630C}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{E026592A-E9E4-424F-9F6F-1ED85554630C}.Release|x86.ActiveCfg = Release|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Debug|x86.Build.0 = Debug|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|x86.ActiveCfg = Release|Any CPU
+		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

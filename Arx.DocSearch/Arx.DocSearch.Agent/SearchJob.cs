@@ -376,7 +376,8 @@ namespace Arx.DocSearch.Agent
 			IntPtr address = Marshal.AllocHGlobal(bb.Length * sizeof(byte));
 			Marshal.Copy(bb, 0, address, bb.Length);
 			HCInterface.Agent.HCWriteMemoryEntry(description, (uint)address.ToInt32(), (uint)bb.Length);
-		}
+            Marshal.FreeHGlobal(address);
+        }
 
 		private void WriteLog(string Log)
 		{

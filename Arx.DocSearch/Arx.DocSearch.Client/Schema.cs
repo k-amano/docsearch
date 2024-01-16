@@ -30,13 +30,14 @@ namespace Arx.DocSearch.Client
 		private string wordCount;
 		private string roughLines;
 		private string xlsdir;
-		#endregion
+        private string srcIndex;
+        #endregion
 
-		#region Property
-		/// <summary>
-		/// ログイン時にアクセスする Web ページの URL を取得または設定します。
-		/// </summary>
-		public string SrcFile
+        #region Property
+        /// <summary>
+        /// ログイン時にアクセスする Web ページの URL を取得または設定します。
+        /// </summary>
+        public string SrcFile
 		{
 			get
 			{
@@ -137,15 +138,30 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		#endregion
+        /// <summary>
+        /// ログイン時にアクセスする Web ページの URL を取得または設定します。
+        /// </summary>
+        public string SrcIndex
+        {
+            get
+            {
+                return srcIndex;
+            }
+            set
+            {
+                srcIndex = value;
+            }
+        }
 
-		#region Method
-		/// <summary>
-		/// config ファイルから設定内容を読み込み、その値を書き込んだ Schema インスタンスを取得します。
-		/// </summary>
-		/// <param name="configFile">設定ファイル。</param>
-		/// <returns>取得した FelicaDemo オブジェクト。</returns>
-		static public Schema LoadSettings(string configFile)
+        #endregion
+
+        #region Method
+        /// <summary>
+        /// config ファイルから設定内容を読み込み、その値を書き込んだ Schema インスタンスを取得します。
+        /// </summary>
+        /// <param name="configFile">設定ファイル。</param>
+        /// <returns>取得した FelicaDemo オブジェクト。</returns>
+        static public Schema LoadSettings(string configFile)
 		{
 			Schema schema = new Schema();
 			try

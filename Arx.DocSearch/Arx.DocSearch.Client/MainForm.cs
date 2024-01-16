@@ -58,6 +58,7 @@ namespace Arx.DocSearch.Client
 		private List<string> logs;
 		private bool isProgressing;
         private List<Process> agentPrograms;
+		private int srcIndex;
         #endregion
 
         #region Property
@@ -212,12 +213,19 @@ namespace Arx.DocSearch.Client
 			this.wordCountText.Text = this.config.WordCount;
 			this.roughLinesText.Text = this.config.RoughLines;
 			this.xlsdir = this.config.Xlsdir;
+			this.srcIndex = ConvertEx.GetInt(this.config.SrcIndex);
 			this.messageLabel.Text = string.Empty;
 			this.countLabel.Text = string.Empty;
 			this.GetTotalCount();
 			this.timer1.Start();
 			//this.job = new SearchJob(this);
-		}
+			if (0 < this.srcIndex)
+			{
+                this.AddReservation();
+                this.SearchReservationList();
+            }
+
+        }
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
@@ -231,6 +239,7 @@ namespace Arx.DocSearch.Client
 				this.config.WordCount = this.wordCountText.Text;
 				this.config.RoughLines = this.roughLinesText.Text;
 				this.config.Xlsdir = this.xlsdir;
+				this.config.SrcIndex = ConvertEx.GetString(this.srcIndex);	
 				this.config.SaveSettings(this.configFile);
 				this.WriteLog(string.Format("Conifg File was saved.  Xlsdir={0}", this.config.Xlsdir));
 			}
@@ -783,7 +792,7 @@ namespace Arx.DocSearch.Client
 			this.messageLabel.Text = string.Empty;
 			this.countLabel.Text = string.Empty;
 			this.folderBrowserDialog2.SelectedPath = this.xlsdir;
-			if (this.folderBrowserDialog2.ShowDialog() == DialogResult.OK)
+			if (0 == this.srcIndex && this.folderBrowserDialog2.ShowDialog() == DialogResult.OK)
 			{
 				this.xlsdir = this.folderBrowserDialog2.SelectedPath;
 			}
@@ -792,8 +801,11 @@ namespace Arx.DocSearch.Client
 			var task = Task.Factory.StartNew(() =>
 			{
 				//Debug.WriteLine("Task begins ...");
-				foreach (Reservation r in this.reservationList)
-				{
+				Reservation r = null;
+                if (this.srcIndex < this.reservationList.Count) r = this.reservationList[this.srcIndex];
+				if (null != r)
+                //foreach (Reservation r in this.reservationList)
+                {
                     //Debug.WriteLine(string.Format("r.SrcFile={0}", r.SrcFile));
                     bool result = false;
                     this.isProgressing = true;
@@ -825,7 +837,27 @@ namespace Arx.DocSearch.Client
                     }
 					if (!result) {
 						this.UpdateMessageLabel(r.SrcFile + "の検索に失敗しましたので処理を中止します。");
-						break;
+						//break;
+					}
+                    string fname = Path.Combine(Application.StartupPath, "client.tmp");
+                    if (this.srcIndex == this.reservationList.Count - 1 || this.reservationList.Count < 2)
+					{
+						this.srcIndex = 0;
+                        if (File.Exists(fname)) File.Delete(fname);
+					}
+					else
+					{
+						this.srcIndex++;
+						if (!File.Exists(fname))
+						{
+							using (StreamWriter sw = new StreamWriter(fname, true))
+							{
+								string str = "write test";
+								sw.Write(str);
+							}
+
+						}
+						this.Close();
 					}
                 }
                 this.reservationList.Clear();
@@ -1075,6 +1107,26 @@ namespace Arx.DocSearch.Client
 						MessageBoxIcon.Error);
 					return;
 				}
+            }
+        }
+
+        private void RestartClientProgram()
+        {
+            var assembly = System.Reflection.Assembly.GetEntryAssembly();
+            // Get the full path of the assembly
+            string filePath = assembly.Location;
+            string dir = Path.GetDirectoryName(filePath);
+            string pname = Path.Combine(dir, "Arx.DocSearch.Client.exe");
+            if (File.Exists(pname))
+            {
+                Process p = Process.Start(pname);
+            }
+            else
+            {
+                MessageBox.Show(string.Format("プログラム'{0}'が存在しません。", pname),
+                    "エラー",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
