@@ -20,6 +20,8 @@ using NPOI.HSSF.Util;
 using View = System.Windows.Forms.View;
 using BorderStyle = NPOI.SS.UserModel.BorderStyle;
 using System.Windows.Forms.VisualStyles;
+using static Arx.DocSearch.Client.NodeManager;
+using NPOI.SS.Formula.Functions;
 
 namespace Arx.DocSearch.Client
 {
@@ -219,6 +221,7 @@ namespace Arx.DocSearch.Client
 			this.GetTotalCount();
 			this.timer1.Start();
 			//this.job = new SearchJob(this);
+			this.StartNodeManager();
 			if (0 < this.srcIndex)
 			{
                 this.AddReservation();
@@ -1130,6 +1133,42 @@ namespace Arx.DocSearch.Client
             }
         }
 
+		private void StartNodeManager()
+		{
+			NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
+			NMOpenConfig(0);
+			uint DResult = 0;
+            uint Cluster = NMCluster(DResult);
+			for(long NOBoard= 1; NOBoard<= NMBoardCount(Cluster); NOBoard++)
+            {
+				uint Board= NMBoard(Cluster, NOBoard);
+				NMLogIn(Board);
+				string FileName = "";
+				uint ProcessHandle = 0;
+                NMStartProgram(1, FileName, "/IndexOfUser=01", ProcessHandle);
+				NMLogOut();
+
+            }
+            NodeManager.NMCloseConfig();
+            NodeManager.NMFinalize();
+        }
+        private void StopNodeManager()
+        {
+            NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
+            NMOpenConfig(0);
+            uint DResult = 0;
+            uint Cluster = NMCluster(DResult);
+            for (long NOBoard = 1; NOBoard <= NMBoardCount(Cluster); NOBoard++)
+            {
+                uint Board = NMBoard(Cluster, NOBoard);
+                NMLogIn(Board);
+                NMStopProgram(1);
+                NMLogOut();
+
+            }
+            NodeManager.NMCloseConfig();
+            NodeManager.NMFinalize();
+        }
         #endregion
 
     }

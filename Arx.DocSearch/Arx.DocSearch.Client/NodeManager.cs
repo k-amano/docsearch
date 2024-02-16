@@ -6,7 +6,7 @@ namespace Arx.DocSearch.Client
 {
     public class NodeManager
     {
-        private const string DllFileName = "NodeManager.dll";
+        public const string DllFileName = "NodeManager.dll";
         public enum TNodeManagerKind
         {
             NMKNone, NMKClient, NMKAgent, NMKBoth
@@ -28,13 +28,18 @@ namespace Arx.DocSearch.Client
         public extern static void NMCloseConfig();
 
         [DllImport(DllFileName)]
-        public extern static void NMStartProgram(string DLLFileName, string Params, long UserIndex, uint ProcessHandle);
+        public extern static void NMStartProgram(long UserIndex, string DLLFileName, string Params,  uint ProcessHandle);
+
+        [DllImport(DllFileName)]
+        public extern static void NMStopProgram(long UserIndexe);
 
         [DllImport(DllFileName)]
         public extern static uint NMCluster(uint DResult);
 
         [DllImport(DllFileName)]
         public extern static long NMBoardCount(uint DCluster);
+        [DllImport(DllFileName)]
+        public extern static uint NMBoard(uint DCluster, long BoardIndex);
 
     }
 }
