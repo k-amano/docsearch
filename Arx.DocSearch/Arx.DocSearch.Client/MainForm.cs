@@ -790,7 +790,7 @@ namespace Arx.DocSearch.Client
 			//Debug.WriteLine("### SearchReservationList");
 			this.progressText.Clear();
 			this.messageLabel.Text = string.Empty;
-			this.countLabel.Text = string.Empty;
+			this.countLabel.Text = string.Format("検索テキスト{0}件中{1}件目検索中", this.srcCombo.Items.Count, this.srcIndex + 1);
 			this.folderBrowserDialog2.SelectedPath = this.xlsdir;
 			if (0 == this.srcIndex && this.folderBrowserDialog2.ShowDialog() == DialogResult.OK)
 			{

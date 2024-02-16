@@ -27,9 +27,9 @@ namespace Arx.DocSearch.Client
                 return;
             }
             // Console表示
-            AllocConsole();
+            //AllocConsole();
             // コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
-            Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+            //Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
             // ThreadExceptionイベント・ハンドラを登録する
             Application.ThreadException += new
               ThreadExceptionEventHandler(Application_ThreadException);

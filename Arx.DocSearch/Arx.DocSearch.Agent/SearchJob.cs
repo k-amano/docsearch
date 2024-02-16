@@ -465,7 +465,7 @@ namespace Arx.DocSearch.Agent
 				this.HCWriteMemory(Description, bmlList);
 				this.HCWriteMemory(Description, bmdList);
 				this.WriteLog(string.Format("DoOnExecuteTask Finished SlotIndex={0}", SlotIndex));
-                GC.Collect();
+                //GC.Collect();
             }
 			catch (Exception e)
 			{
