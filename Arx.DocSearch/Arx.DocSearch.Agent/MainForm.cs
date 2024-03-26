@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Diagnostics;
 using Xyn.Util;
 using System.Text;
+using System.Windows.Forms.VisualStyles;
 //using static System.Net.WebRequestMethods;
 
 namespace Arx.DocSearch.Agent
@@ -25,7 +26,7 @@ namespace Arx.DocSearch.Agent
 			this.mainProgram = "";
             this.fileName = "";
             this.programNo = 0;
-			//this.StartSubPrograms();
+			this.StartSubPrograms();
 			this.GetProgramNo();
             this.Text = string.Format("{0}(Agent{1})", this.Text, this.programNo);
         }
@@ -37,6 +38,7 @@ namespace Arx.DocSearch.Agent
         private string fileName;
         private List<Process> subPrograms;
         private int programNo;
+		private int mainPid;
 		delegate void AppendTextCallback(string text);
 
 		private void onLoad(object sender, EventArgs e)
@@ -44,6 +46,7 @@ namespace Arx.DocSearch.Agent
             try
             {
                 int userIndex = this.GetUserIndexFromCommandLine();
+				this.mainPid = this.GetPidFromCommandLine();
                 //this.CleanFolder();
                 this.GetProgramNo();
                 this.timer1.Start();
@@ -81,7 +84,17 @@ namespace Arx.DocSearch.Agent
 		private void timer1_Tick(object sender, EventArgs e)
 		{
 			this.WriteErrorLog();
-			//if (1 < this.programNo && !string.IsNullOrEmpty(this.mainProgram) && !this.HasProcessByFileName(this.mainProgram)) this.Close();
+			if (1 < this.programNo && !string.IsNullOrEmpty(this.mainProgram))
+			{
+                Process p = null;
+                try
+                {
+                    p = Process.GetProcessById(this.mainPid);
+
+                }
+                catch { }
+                if (null == p) this.Close();
+            }
 		}
 
 		private int GetUserIndexFromCommandLine()
@@ -90,12 +103,27 @@ namespace Arx.DocSearch.Agent
 			string[] commandLine = System.Environment.GetCommandLineArgs();
 			string paramStr1 = string.Empty;
 			if (commandLine.Length > 1) paramStr1 = commandLine[1];
-			if (paramStr1.Length > 14) userIndex = Convert.ToInt32(paramStr1.Substring(13, 2));
-			if (userIndex < 1 || userIndex > 16) userIndex = 1;
+			if (paramStr1.StartsWith("/IndexOfUser=")) {
+                if (paramStr1.Length > 14) userIndex = Convert.ToInt32(paramStr1.Substring(13, 2));
+                if (userIndex < 1 || userIndex > 16) userIndex = 1;
+            }
 			return userIndex;
 		}
 
-		public void WriteLog(string Log)
+        private int GetPidFromCommandLine()
+        {
+            int pid = 1;
+            string[] commandLine = System.Environment.GetCommandLineArgs();
+            string paramStr1 = string.Empty;
+            if (commandLine.Length > 1) paramStr1 = commandLine[1];
+            if (paramStr1.StartsWith("/pid="))
+            {
+                if (5 < paramStr1.Length) pid = ConvertEx.GetInt(paramStr1.Substring(5));
+            }
+            return pid;
+        }
+
+        public void WriteLog(string Log)
 		{
 			// 呼び出し元のコントロールのスレッドが異なるか確認をする
 			if (this.textBox.InvokeRequired)
@@ -151,9 +179,9 @@ namespace Arx.DocSearch.Agent
 			}
 		}
 
-		private void StartSubPrograms()
-		{
-			var assembly = System.Reflection.Assembly.GetEntryAssembly();
+		private void StartSubPrograms(){ 
+			string pid = ConvertEx.GetString(Process.GetCurrentProcess().Id);
+            var assembly = System.Reflection.Assembly.GetEntryAssembly();
 			// Get the full path of the assembly
 			string filePath = assembly.Location;
 			string dir = Path.GetDirectoryName(filePath);
@@ -186,7 +214,7 @@ namespace Arx.DocSearch.Agent
                         }
                     }
 					foreach(string file in files) {
-                        Process p = Process.Start(file);
+                        Process p = Process.Start(file, "/pid=" + pid);
 						this.subPrograms.Add(p);
                     }
                 }

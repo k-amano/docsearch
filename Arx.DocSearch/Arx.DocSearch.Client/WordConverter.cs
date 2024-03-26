@@ -20,7 +20,7 @@ namespace Arx.DocSearch.Client
 		/// <summary>
 		/// コンストラクタです。
 		/// </summary>
-		public WordConverter(string srcFile, List<string> lsSrc, string targetFile, List<string> lsTarget, Dictionary<int, MatchLine> matchLines, string seletedPath)
+		public WordConverter(string srcFile, List<string> lsSrc, string targetFile, List<string> lsTarget, Dictionary<int, MatchLine> matchLines, string seletedPath, MainForm mainForm)
 		{
 			this.srcFile = srcFile;
 			this.targetFile = targetFile;
@@ -28,6 +28,7 @@ namespace Arx.DocSearch.Client
 			this.lsTarget = lsTarget;
 			this.matchLines = matchLines;
 			this.seletedPath = seletedPath;
+			this.mainForm = mainForm;
 		}
 		#endregion
 		#region フィールド
@@ -39,10 +40,11 @@ namespace Arx.DocSearch.Client
 		string seletedPath;
 		List<List<int>> srcParagraphs;
 		List<List<int>> targetParagraphs;
-		#endregion
+        private MainForm mainForm;
+        #endregion
 
-		#region メソッド
-		public void Run()
+        #region メソッド
+        public void Run()
 		{
 			this.GetSrcParagraphs();
 			this.GetTargetParagraphs();
@@ -112,6 +114,7 @@ namespace Arx.DocSearch.Client
 			int paragraphPos = -1;
 			int nextPos = 0;
 			int charPos = -1;
+			this.mainForm.WriteLog(string.Format("WordConverter.EditWord: path={0} path2={1}", path, path2));
 			try
 			{
 				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
@@ -195,7 +198,8 @@ namespace Arx.DocSearch.Client
 			catch (Exception e)
 			{
 				Debug.WriteLine(e.StackTrace);
-			}
+                this.mainForm.WriteLog("WordConverter.EditWord:" + e.Message + "\n"+  e.StackTrace);
+            }
 			finally
 			{
 				if (null != doc)
@@ -286,20 +290,20 @@ namespace Arx.DocSearch.Client
 
 		private string[] ReplaceLine(string line)
 		{
-			line = Regex.Replace(line, @"[\x00-\x1F\x7F]", "");
-			line = Regex.Replace(line, @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
-			line = Regex.Replace(line, @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
-			line = Regex.Replace(line, @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
-			line = Regex.Replace(line, @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン
-			line = Regex.Replace(line, @"[\u00A9\u00AE\u2022\u2122]", "\""); //UTF-8のスラッシュ
+			line = Regex.Replace(line ?? "", @"[\x00-\x1F\x7F]", "");
+			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
+			line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
+			line = Regex.Replace(line ?? "", @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
+			line = Regex.Replace(line ?? "", @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン
+			line = Regex.Replace(line ?? "", @"[\u00A9\u00AE\u2022\u2122]", "\""); //UTF-8のスラッシュ
 			//スペースに挟まれた「Fig.」で次が大文字でない場合は、文末と混同しないようにドットの後ろのスペースを削除する。
-			line = Regex.Replace(line, @"(^fig| fig)\. +([^A-Z])", "$1.$2", RegexOptions.IgnoreCase);
+			line = Regex.Replace(line ?? "", @"(^fig| fig)\. +([^A-Z])", "$1.$2", RegexOptions.IgnoreCase);
 			//2個以上連続するスペースは1個の半角スペースにする。
-			line = Regex.Replace(line, @"\s+", " ");
+			line = Regex.Replace(line ?? "", @"\s+", " ");
 			line = TextConverter.ZenToHan(line);
 			line = TextConverter.HankToZen(line);
-			line = Regex.Replace(line, @"^((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
-			line = Regex.Replace(line, @"^([0-9]+)(\.?)", "\n$1$2  \n"); //数字
+			line = Regex.Replace(line ?? "", @"^((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
+			line = Regex.Replace(line ?? "", @"^([0-9]+)(\.?)", "\n$1$2  \n"); //数字
 			string[] lines = line.Split('\n');
 			return lines;
 		}
@@ -385,7 +389,7 @@ namespace Arx.DocSearch.Client
 
 		private bool StartsWithCapital(string line)
 		{
-			if (Regex.IsMatch(line, @"^(\s*[A-Z])")) return true;
+			if (Regex.IsMatch(line ?? "", @"^(\s*[A-Z])")) return true;
 			else return false;
 		}
 		#endregion

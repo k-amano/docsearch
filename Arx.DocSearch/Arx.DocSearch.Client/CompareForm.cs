@@ -95,7 +95,7 @@ namespace Arx.DocSearch.Client
 			var task = Task.Factory.StartNew(() =>
 			{
 				//this.convertButton.Enabled = false;
-				WordConverter wc = new WordConverter(this.srcFile, this.lsSrc, this.fname, this.lsTarget, this.matchLines, seletedPath);
+				WordConverter wc = new WordConverter(this.srcFile, this.lsSrc, this.fname, this.lsTarget, this.matchLines, seletedPath, this.mainForm);
 				wc.Run();
 			});
 

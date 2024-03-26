@@ -221,7 +221,7 @@ namespace Arx.DocSearch.Client
 			this.GetTotalCount();
 			this.timer1.Start();
 			//this.job = new SearchJob(this);
-			this.StartNodeManager();
+			//this.StartNodeManager();
 			if (0 < this.srcIndex)
 			{
                 this.AddReservation();
@@ -1093,7 +1093,7 @@ namespace Arx.DocSearch.Client
 					MessageBoxIcon.Error);
 				return;
 			}
-			int total = 8;
+			/*int total = 8;
             for (int i = 2; i <= total; i++)
             {
                 pname = Path.Combine(dir, string.Format("Arx.DocSearch.Agent_{0}_{1}.exe", i, total));
@@ -1110,7 +1110,7 @@ namespace Arx.DocSearch.Client
 						MessageBoxIcon.Error);
 					return;
 				}
-            }
+            }*/
         }
 
         private void RestartClientProgram()
@@ -1135,25 +1135,32 @@ namespace Arx.DocSearch.Client
 
 		private void StartNodeManager()
 		{
-			NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
-			NMOpenConfig(0);
-			uint DResult = 0;
-            uint Cluster = NMCluster(DResult);
-			for(long NOBoard= 1; NOBoard<= NMBoardCount(Cluster); NOBoard++)
-            {
-				uint Board= NMBoard(Cluster, NOBoard);
-				NMLogIn(Board);
-				string FileName = "";
-				uint ProcessHandle = 0;
-                NMStartProgram(1, FileName, "/IndexOfUser=01", ProcessHandle);
-				NMLogOut();
+		try {
+                NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
+                NMOpenConfig(0);
+                /*uint DResult = 0;
+                uint Cluster = NMCluster(DResult);
+                for (long NOBoard = 1; NOBoard <= NMBoardCount(Cluster); NOBoard++)
+                {
+                    uint Board = NMBoard(Cluster, NOBoard);
+                    NMLogIn(Board);
+                    string FileName = "";
+                    uint ProcessHandle = 0;
+                    NMStartProgram(1, FileName, "/IndexOfUser=01", ProcessHandle);
+                    NMLogOut();
 
-            }
-            NodeManager.NMCloseConfig();
-            NodeManager.NMFinalize();
+                }
+                NodeManager.NMCloseConfig();
+                NodeManager.NMFinalize();*/
+
+            } catch (Exception ex) {
+				this.WriteLog(ex.Message);
+			}
+
         }
         private void StopNodeManager()
         {
+
             NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
             NMOpenConfig(0);
             uint DResult = 0;
