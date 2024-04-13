@@ -32,6 +32,7 @@ namespace Arx.DocSearch.ClientStarter
             string pname = Path.Combine(Application.StartupPath, "Arx.DocSearch.Client.exe");
             if (File.Exists(pname))
             {
+                this.WindowState = FormWindowState.Minimized;
                 using (Process p = Process.Start(pname)) {
                     while (true)
                     {
@@ -39,7 +40,8 @@ namespace Arx.DocSearch.ClientStarter
                         if (p.HasExited) break;
                     }
                 }
-
+                this.WindowState = FormWindowState.Normal;
+                this.Refresh();
                 Thread.Sleep(3000);
             }
             else

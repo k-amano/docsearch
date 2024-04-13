@@ -117,6 +117,7 @@ namespace Arx.DocSearch.Client
 			this.mainForm.WriteLog(string.Format("WordConverter.EditWord: path={0} path2={1}", path, path2));
 			try
 			{
+                //throw new Exception("An exception occurs.");
 				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
 				string text = string.Empty;
 				for (int i = 0; i < doc.Paragraphs.Count; i++)
