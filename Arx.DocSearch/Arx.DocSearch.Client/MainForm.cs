@@ -221,6 +221,7 @@ namespace Arx.DocSearch.Client
 			this.GetTotalCount();
 			this.timer1.Start();
 			//this.job = new SearchJob(this);
+			//Thread.Sleep(5000);
 			//this.StartNodeManager();
 			if (0 < this.srcIndex)
 			{
@@ -1093,7 +1094,7 @@ namespace Arx.DocSearch.Client
 					MessageBoxIcon.Error);
 				return;
 			}
-			/*int total = 8;
+			int total = 8;
             for (int i = 2; i <= total; i++)
             {
                 pname = Path.Combine(dir, string.Format("Arx.DocSearch.Agent_{0}_{1}.exe", i, total));
@@ -1110,7 +1111,7 @@ namespace Arx.DocSearch.Client
 						MessageBoxIcon.Error);
 					return;
 				}
-            }*/
+            }
         }
 
         private void RestartClientProgram()

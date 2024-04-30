@@ -6,7 +6,7 @@ namespace Arx.DocSearch.Client
 {
     public class NodeManager
     {
-        public const string DllFileName = "NodeManager.dll";
+        public const string DllFileName = "NodeManager_Free.dll";
         public enum TNodeManagerKind
         {
             NMKNone, NMKClient, NMKAgent, NMKBoth

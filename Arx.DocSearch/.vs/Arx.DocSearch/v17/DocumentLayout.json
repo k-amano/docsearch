@@ -3,15 +3,11 @@
   "WorkspaceRootPath": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}|Arx.DocSearch.ClientStarter\\Arx.DocSearch.ClientStarter.csproj|c:\\users\\administrator\\visualstudioprojects\\docsearch\\arx.docsearch\\arx.docsearch.clientstarter\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}|Arx.DocSearch.ClientStarter\\Arx.DocSearch.ClientStarter.csproj|solutionrelative:arx.docsearch.clientstarter\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\arx.docsearch.client\\textconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|solutionrelative:arx.docsearch.client\\textconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D95EAFA0-3BD2-40F7-8DAB-A6E8F129B0BB}|Arx.DocSearch.Agent\\Arx.DocSearch.Agent.csproj|C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\arx.docsearch.agent\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D95EAFA0-3BD2-40F7-8DAB-A6E8F129B0BB}|Arx.DocSearch.Agent\\Arx.DocSearch.Agent.csproj|solutionrelative:arx.docsearch.agent\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\arx.docsearch.client\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|c:\\users\\administrator\\visualstudioprojects\\docsearch\\arx.docsearch\\arx.docsearch.client\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|solutionrelative:arx.docsearch.client\\mainform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
@@ -19,8 +15,15 @@
       "RelativeMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|solutionrelative:arx.docsearch.client\\wordconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\arx.docsearch.client\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|solutionrelative:arx.docsearch.client\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\arx.docsearch.client\\nodemanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2272908E-7823-4A36-9A7E-FE341CE2AF31}|Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj|solutionrelative:arx.docsearch.client\\nodemanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{00000000-0000-0000-0000-000000000000}|\u003CSolution\u003E|Arx.DocSearch.Client||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|"
     }
   ],
   "DocumentGroupContainers": [
@@ -35,39 +38,50 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "MainForm.cs",
-              "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.ClientStarter\\MainForm.cs",
-              "RelativeDocumentMoniker": "Arx.DocSearch.ClientStarter\\MainForm.cs",
-              "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.ClientStarter\\MainForm.cs",
-              "RelativeToolTip": "Arx.DocSearch.ClientStarter\\MainForm.cs",
-              "ViewState": "AQIAABwAAAAAAAAAAAAUwCsAAAAfAAAA",
+              "Title": "TextConverter.cs",
+              "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\TextConverter.cs",
+              "RelativeDocumentMoniker": "Arx.DocSearch.Client\\TextConverter.cs",
+              "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\TextConverter.cs",
+              "RelativeToolTip": "Arx.DocSearch.Client\\TextConverter.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-04-08T10:08:38.699Z",
+              "WhenOpened": "2024-04-29T12:47:38.415Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "WordConverter.cs",
               "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\WordConverter.cs",
               "RelativeDocumentMoniker": "Arx.DocSearch.Client\\WordConverter.cs",
               "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\WordConverter.cs",
               "RelativeToolTip": "Arx.DocSearch.Client\\WordConverter.cs",
-              "ViewState": "AQIAAG4AAAAAAAAAAAAuwHcAAAASAAAA",
+              "ViewState": "AQIAAHcAAAAAAAAAAAAmwIEAAAAYAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-03-23T23:36:18.649Z"
+              "WhenOpened": "2024-04-22T09:21:45.288Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "MainForm.cs",
-              "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Agent\\MainForm.cs",
-              "RelativeDocumentMoniker": "Arx.DocSearch.Agent\\MainForm.cs",
-              "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Agent\\MainForm.cs",
-              "RelativeToolTip": "Arx.DocSearch.Agent\\MainForm.cs",
-              "ViewState": "AQIAACsAAAAAAAAAAAAAADcAAABBAAAA",
+              "DocumentIndex": 5,
+              "Title": "Arx.DocSearch.Client",
+              "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj",
+              "RelativeDocumentMoniker": "Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj",
+              "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj",
+              "RelativeToolTip": "Arx.DocSearch.Client\\Arx.DocSearch.Client.csproj",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2024-04-14T07:05:52.818Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\Program.cs",
+              "RelativeDocumentMoniker": "Arx.DocSearch.Client\\Program.cs",
+              "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\Program.cs",
+              "RelativeToolTip": "Arx.DocSearch.Client\\Program.cs",
+              "ViewState": "AQIAABAAAAAAAAAAAAA0wB8AAAAOAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-03-20T05:54:08.657Z"
+              "WhenOpened": "2024-04-14T06:50:51.184Z"
             },
             {
               "$type": "Document",
@@ -77,21 +91,22 @@
               "RelativeDocumentMoniker": "Arx.DocSearch.Client\\NodeManager.cs",
               "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\NodeManager.cs",
               "RelativeToolTip": "Arx.DocSearch.Client\\NodeManager.cs",
-              "ViewState": "AQIAAAgAAAAAAAAAAAAkwAAAAAAAAAAA",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAoAAAAJAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-03-20T04:46:42.812Z"
+              "WhenOpened": "2024-04-14T06:31:36.835Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "MainForm.cs",
               "DocumentMoniker": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\MainForm.cs",
               "RelativeDocumentMoniker": "Arx.DocSearch.Client\\MainForm.cs",
               "ToolTip": "C:\\Users\\Administrator\\VisualStudioProjects\\docsearch\\Arx.DocSearch\\Arx.DocSearch.Client\\MainForm.cs",
               "RelativeToolTip": "Arx.DocSearch.Client\\MainForm.cs",
-              "ViewState": "AQIAAGoEAAAAAAAAAAAAAHIEAAAAAAAA",
+              "ViewState": "AQIAAG8AAAAAAAAAAAAuwN0BAAARAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-01-17T01:28:07.256Z"
+              "WhenOpened": "2024-01-17T01:28:07.256Z",
+              "EditorCaption": ""
             }
           ]
         }

@@ -120,21 +120,30 @@ namespace Arx.DocSearch.Client
                 //throw new Exception("An exception occurs.");
 				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
 				string text = string.Empty;
+				this.mainForm.WriteLog(string.Format("doc.Paragraphs.Count={0}", doc.Paragraphs.Count));
 				for (int i = 0; i < doc.Paragraphs.Count; i++)
 				{
 					Paragraph para = doc.Paragraphs[i + 1];
 					Range r = para.Range;
-					if (0 == r.Text.Trim().Length) continue;
+					try
+					{
+						if (0 == (r?.Text?.Trim().Length ?? 0)) continue;
+					}
+					catch (Exception e)
+					{ 
+						this.mainForm.WriteLog(string.Format("path={0} i={1}:{2}\n{3}",path, i,e.Message,e.StackTrace));
+						throw new Exception("An exception occurs.");
+					}
 					bool isDebug = false;
-					/*if (i < 5)
+					/*if (i < 10)
 					{
 						string str = r.Text;
 						if (80 < str.Length) str = str.Substring(0, 80);
-						//Debug.WriteLine(string.Format("#### EditWord i={0} paragraphPos={1} r.Text.Length={2}:{3}", i, paragraphPos, r.Text.Trim().Length, str));
+						this.mainForm.WriteLog(string.Format("#### EditWord i={0} paragraphPos={1} r.Text.Length={2}:{3}", i, paragraphPos, r.Text.Trim().Length, str));
 						isDebug = true;
 					}*/
-					if (119 == i) isDebug = true;
-					else isDebug = false;
+					/*if (119 == i) isDebug = true;
+					else isDebug = false;*/
 					//if (isDebug) Debug.WriteLine(string.Format("i={0} r.Text={1}#", i, r.Text));
 					this.FindParagraph(r.Text, ref paragraphPos, ref nextPos, isTarget, isDebug);
 					//if (65 < i && i < 70) Debug.WriteLine(string.Format("paragraphPos={0} nextPos={1}#", paragraphPos, nextPos));
