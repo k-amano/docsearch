@@ -6,11 +6,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Xyn.Util;
-using iTextSharp.text;
 using iTextSharp.text.pdf;
 using iTextSharp.text.pdf.parser;
 using Arx.DocSearch.Util;
@@ -19,9 +17,9 @@ using NPOI.SS.UserModel;
 using NPOI.HSSF.Util;
 using View = System.Windows.Forms.View;
 using BorderStyle = NPOI.SS.UserModel.BorderStyle;
-using System.Windows.Forms.VisualStyles;
 using static Arx.DocSearch.Client.NodeManager;
-using NPOI.SS.Formula.Functions;
+using iTextSharp.text.log;
+//using Microsoft.Office.Interop.Word;
 
 namespace Arx.DocSearch.Client
 {
@@ -487,10 +485,22 @@ namespace Arx.DocSearch.Client
 					string fileText = "";
 					int l = ExtractText(srcFile, false, ref fileText);
 					string[] paragraphs = fileText.Split('\n');
+					int maxContiuousNumber = 0;
+					bool isContinuousNumber = false;
+					int pos = 0;
 					for (int i = 0; i < paragraphs.Length; i++)
 					{
 						string line = paragraphs[i].TrimEnd();
-						line = this.ReplaceLine(line);
+						if (pos <= i)
+						{
+							int continuousNumber = this.GetContinuousNumber(i, paragraphs, ref maxContiuousNumber);
+							if (0 < continuousNumber)
+							{
+								pos = i + continuousNumber;
+								isContinuousNumber = true;
+							}
+						}
+						line = this.ReplaceLine(line, isContinuousNumber);
 						//if (i < 5) Debug.WriteLine(string.Format("i={0} line={0}", i, line));
 						writer.Write(line);
 						bool startsWithCapital = false;
@@ -500,7 +510,7 @@ namespace Arx.DocSearch.Client
 						{
 							writer.Write("\n");//ピリオドまたは読点で終わっていれば改行する
 						}
-						else
+						else if (!string.IsNullOrEmpty(line))
 						{
 							writer.Write(" "); //それ以外は空白を追加。
 						}
@@ -537,6 +547,7 @@ namespace Arx.DocSearch.Client
 				PdfReader pdfReader = null;
 				StreamWriter writer = null;
 				ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
+				int maxContiuousNumber = 0;
 				try
 				{
 					pdfReader = new PdfReader(srcFile);
@@ -546,10 +557,19 @@ namespace Arx.DocSearch.Client
 					{
 						string currentText = PdfTextExtractor.GetTextFromPage(pdfReader, page, strategy);
 						string[] lines = currentText.Split('\n');
+						bool isContinuousNumber = false;
+						int pos = 0;
 						for (int i = 0; i < lines.Length; i++)
 						{
 							string line = lines[i].TrimEnd();
-							line = this.ReplaceLine(line);
+							if (pos <= i) {
+								int continuousNumber = this.GetContinuousNumber(i, lines, ref maxContiuousNumber);
+								if (0 < continuousNumber) {
+									pos = i + continuousNumber;
+									isContinuousNumber = true;
+								}
+							}
+							line = this.ReplaceLine(line, isContinuousNumber);
 							writer.Write(line);
 							bool startsWithCapital = false;
 							if (i + 1 < lines.Length && this.StartsWithCapital(lines[i + 1])) startsWithCapital = true;
@@ -579,7 +599,7 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private string ReplaceLine(string line)
+		private string ReplaceLine(string line, bool isContinuousNumber)
 		{
 			line = Regex.Replace(line, @"[\x00-\x1F\x7F]", "");
 			line = Regex.Replace(line, @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
@@ -596,6 +616,7 @@ namespace Arx.DocSearch.Client
 			line = Regex.Replace(line, @"。([^\n])", "。  \n($1)"); //読点。
 			line = TextConverter.ZenToHan(line);
 			line = TextConverter.HankToZen(line);
+			if (isContinuousNumber && Regex.IsMatch(line.Trim(), @"^[0-9+-]+$")) return "";
 			//line = Regex.Replace(line, @"^([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*)", "\n$1$2$3$4  \n"); //【数字】
 			line = Regex.Replace(line, @"^((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
 			line = Regex.Replace(line, @"^([0-9]+)(\.?)", "\n$1$2  \n"); //数字
@@ -607,6 +628,36 @@ namespace Arx.DocSearch.Client
 		{
 			if (Regex.IsMatch(line, @"^(\s*[A-Z])")) return true;
 			else return false;
+		}
+
+		private int GetContinuousNumber(int i, string[] paragraphs, ref int maxContiuousNumber)
+		{
+			if (0 == i) return 0;
+			string previousline = paragraphs[i - 1].Trim();
+			if (Regex.IsMatch(previousline, @"^[0-9+-]+$"))
+			{
+				int count = GetNumberCount(i, paragraphs, ref maxContiuousNumber);
+				return count;
+			}
+			else return 0;
+		}
+
+		private int GetNumberCount(int i, string[] paragraphs, ref int maxContiuousNumber)
+		{
+			int count = 0;
+			for (int j = i; j < paragraphs.Length; j++)
+			{
+				string line = paragraphs[j].Trim();
+				if (Regex.IsMatch(line, @"^[0-9+-]+$")) count++;
+				else break;
+
+			}
+			if (maxContiuousNumber < count)
+			{
+				maxContiuousNumber = count;
+				MessageBox.Show(string.Format("count={0}", count));
+			}
+			return count;
 		}
 
 		private void MakeIndexFile(string textFile)
