@@ -1195,6 +1195,7 @@ namespace Arx.DocSearch.Client
 					MessageBoxIcon.Error);
 				return;
 			}
+			/*
 			int total = 8;
             for (int i = 2; i <= total; i++)
             {
@@ -1213,6 +1214,7 @@ namespace Arx.DocSearch.Client
 					return;
 				}
             }
+			*/
         }
 
         private void RestartClientProgram()
