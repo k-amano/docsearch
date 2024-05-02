@@ -478,7 +478,7 @@ namespace Arx.DocSearch.Client
 					string dir = Path.Combine(Path.GetDirectoryName(srcFile), ".adsidx");
 					string textFile = Path.Combine(dir, Path.GetFileName(srcFile) + ".txt");
 					if (File.Exists(textFile)) continue;
-					if (File.Exists(textFile)) File.Delete(textFile);
+					//if (File.Exists(textFile)) File.Delete(textFile);
 					this.Invoke(
 						(MethodInvoker)delegate()
 						{
@@ -552,11 +552,13 @@ namespace Arx.DocSearch.Client
 					}
 				);
 				if (File.Exists(textFile)) continue;
+				//if (File.Exists(textFile)) File.Delete(textFile);
 				if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
 				PdfReader pdfReader = null;
 				StreamWriter writer = null;
 				ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
 				int maxContiuousNumber = 0;
+				bool excludesTable = false;
 				try
 				{
 					pdfReader = new PdfReader(srcFile);
@@ -567,11 +569,11 @@ namespace Arx.DocSearch.Client
 						string currentText = PdfTextExtractor.GetTextFromPage(pdfReader, page, strategy);
 						string[] lines = currentText.Split('\n');
 						bool isContinuousNumber = false;
-						bool excludesTable = false;
 						int pos = 0;
 						for (int i = 0; i < lines.Length; i++)
 						{
 							string line = lines[i].TrimEnd();
+							//if (1 == page && i<1000) Console.WriteLine(string.Format("i={0}, line={1}", i, line));
 							if (pos <= i) {
 								int continuousNumber = this.GetContinuousNumber(i, lines, ref maxContiuousNumber, ref excludesTable);
 								if (0 < continuousNumber) {
@@ -627,7 +629,7 @@ namespace Arx.DocSearch.Client
 			line = Regex.Replace(line, @"。([^\n])", "。  \n($1)"); //読点。
 			line = TextConverter.ZenToHan(line);
 			line = TextConverter.HankToZen(line);
-			if (isContinuousNumber && Regex.IsMatch(line.Trim(), @"^[0-9+-]+$"))
+			if (isContinuousNumber && Regex.IsMatch(line.Trim(), @"^[ 0-9+-]+$"))
 			{
 				if (excludesTable)
 				{
@@ -656,8 +658,8 @@ namespace Arx.DocSearch.Client
 		private int GetContinuousNumber(int i, string[] paragraphs, ref int maxContiuousNumber, ref bool excludesTable)
 		{
 			if (0 == i) return 0;
-			string previousline = paragraphs[i - 1].Trim();
-			if (Regex.IsMatch(previousline, @"^[0-9+-]+$"))
+			string previousline = paragraphs[i].Trim();
+			if (Regex.IsMatch(previousline, @"^[ 0-9+-]+$"))
 			{
 				int count = GetNumberCount(i, paragraphs, ref maxContiuousNumber, ref excludesTable);
 				return count;
@@ -671,7 +673,11 @@ namespace Arx.DocSearch.Client
 			for (int j = i; j < paragraphs.Length; j++)
 			{
 				string line = paragraphs[j].Trim();
-				if (Regex.IsMatch(line, @"^[0-9+-]+$")) count++;
+				if (string.IsNullOrEmpty(line) || Regex.IsMatch(line, @"^[ 0-9+-]+$"))
+				{
+					string[] arr = line.Split(' ');
+					count += arr.Length;
+				}
 				else break;
 
 			}
