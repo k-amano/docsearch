@@ -18,12 +18,16 @@ using NPOI.HSSF.Util;
 using View = System.Windows.Forms.View;
 using BorderStyle = NPOI.SS.UserModel.BorderStyle;
 using static Arx.DocSearch.Client.NodeManager;
+using NPOI.SS.Formula.Functions;
 
 namespace Arx.DocSearch.Client
 {
 	public partial class MainForm : Form
 	{
+		//[DllImport("kernel32.dll")]
+		//private static extern bool AllocConsole();
 		[DllImport("xd2txlib.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+
 		public static extern int ExtractText(
 				[MarshalAs(UnmanagedType.BStr)] String lpFileName,
 				bool bProp,
@@ -38,7 +42,11 @@ namespace Arx.DocSearch.Client
 			this.reservationList = new List<Reservation>();
 			this.timer1.Interval = 5000;
 			this.isProgressing = false;
-        }
+			// Console表示
+			//AllocConsole();
+			// コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
+			//Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+		}
 		#endregion
 
 		#region フィールド
@@ -499,8 +507,10 @@ namespace Arx.DocSearch.Client
 								isContinuousNumber = true;
 							}
 						}
-						line = this.ReplaceLine(line, isContinuousNumber, excludesTable);
-						//if (i < 5) Debug.WriteLine(string.Format("i={0} line={0}", i, line));
+						bool endsContinuousNumber = (0 < i) && (i == pos - 1);
+						//if ( i<460) Console.WriteLine(string.Format("i={0}, pos={1}, endsContinuousNumber={2}", i, pos, endsContinuousNumber));
+						line = this.ReplaceLine(line, isContinuousNumber, excludesTable, endsContinuousNumber);
+						//if (i ==457) Console.WriteLine(string.Format("i={0} line={1} isContinuousNumber={2} excludesTable={3} endsContinuousNumber={4}", i, line, isContinuousNumber, excludesTable, endsContinuousNumber));
 						writer.Write(line);
 						bool startsWithCapital = false;
 						if (i + 1 < paragraphs.Length && this.StartsWithCapital(paragraphs[i + 1])) startsWithCapital = true;
@@ -509,7 +519,7 @@ namespace Arx.DocSearch.Client
 						{
 							writer.Write("\n");//ピリオドまたは読点で終わっていれば改行する
 						}
-						else if (!string.IsNullOrEmpty(line))
+						else if (!string.IsNullOrEmpty(line.Trim()))
 						{
 							writer.Write(" "); //それ以外は空白を追加。
 						}
@@ -569,7 +579,8 @@ namespace Arx.DocSearch.Client
 									isContinuousNumber = true;
 								}
 							}
-							line = this.ReplaceLine(line, isContinuousNumber, excludesTable);
+							bool endsContinuousNumber = (0 < i) && (pos == i);
+							line = this.ReplaceLine(line, isContinuousNumber, excludesTable, endsContinuousNumber);
 							writer.Write(line);
 							bool startsWithCapital = false;
 							if (i + 1 < lines.Length && this.StartsWithCapital(lines[i + 1])) startsWithCapital = true;
@@ -578,7 +589,7 @@ namespace Arx.DocSearch.Client
 
 								writer.Write("\n");//ピリオドまたは読点で終わっていれば改行する
 							}
-							else if (!string.IsNullOrEmpty(line))
+							else if (!string.IsNullOrEmpty(line.Trim()))
 							{
 								writer.Write(" "); //それ以外は空白を追加。
 							}
@@ -599,7 +610,7 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private string ReplaceLine(string line, bool isContinuousNumber, bool excludesTable)
+		private string ReplaceLine(string line, bool isContinuousNumber, bool excludesTable, bool endsContinuousNumber)
 		{
 			line = Regex.Replace(line, @"[\x00-\x1F\x7F]", "");
 			line = Regex.Replace(line, @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
@@ -618,12 +629,20 @@ namespace Arx.DocSearch.Client
 			line = TextConverter.HankToZen(line);
 			if (isContinuousNumber && Regex.IsMatch(line.Trim(), @"^[0-9+-]+$"))
 			{
-				if (excludesTable) return "";
-				else return line;
+				if (excludesTable)
+				{
+					if (endsContinuousNumber) return "\n";
+					return "";
+				}
+				else
+				{
+					if (endsContinuousNumber) line += "\n";
+					return line;
+				}
 			}
 			//line = Regex.Replace(line, @"^([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*)", "\n$1$2$3$4  \n"); //【数字】
-			line = Regex.Replace(line, @"^((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
-			line = Regex.Replace(line, @"^([0-9]+)(\.?)", "\n$1$2  \n"); //数字
+			line = Regex.Replace(line, @"^\s*((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
+			line = Regex.Replace(line, @"^\s*([0-9]+)(\.?)", "\n$1$2  \n"); //数字
 			//line = Regex.Replace(line, @"([.,:;])", " $1 "); //半角句読点は前後にスペース
 			return line;
 		}
