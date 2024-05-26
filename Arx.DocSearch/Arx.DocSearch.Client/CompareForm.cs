@@ -54,6 +54,7 @@ namespace Arx.DocSearch.Client
 			this.RecalculateRate();
 			this.SetSrcText();
 			this.SetTargetText();
+			this.DumpParagraphs();
 			//フォルダ選択ダイアログ上部に表示する説明テキストを指定する
 			this.folderBrowserDialog1.Description = "変換したWord文書の保存先フォルダを指定してください。";
 		}
@@ -321,6 +322,17 @@ namespace Arx.DocSearch.Client
 				if (Regex.IsMatch(last3, @"^[\)\]>）＞〕】≫》。]  $")) return line.TrimEnd();
 			}
 			return line;
+		}
+
+		private void DumpParagraphs()
+		{
+			StringBuilder sb = new StringBuilder();
+			for (int i = 0; i < this.lsTarget.Count; i++)
+			{
+				string text = this.lsTarget[i];
+				sb.Append(string.Format("{0}: {1}\n", i, text));
+			}
+			this.mainForm.WriteLog(sb.ToString());
 		}
 	}
 }

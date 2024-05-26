@@ -11,6 +11,10 @@ using System.Windows.Forms;
 using Microsoft.Office.Interop.Word;
 using Application = Microsoft.Office.Interop.Word.Application;
 using Arx.DocSearch.Util;
+using System.Runtime.CompilerServices;
+using NPOI.SS.Formula.Functions;
+using static System.Net.Mime.MediaTypeNames;
+using NPOI.Util;
 
 namespace Arx.DocSearch.Client
 {
@@ -49,7 +53,7 @@ namespace Arx.DocSearch.Client
 			this.GetSrcParagraphs();
 			this.GetTargetParagraphs();
 			//this.DumpParagraphs(targetParagraphs, true);
-			//return;
+			//this.DumpMatchLines();
 			Process[] wordProcesses = Process.GetProcessesByName("WINWORD");
 			if (0 < wordProcesses.Length)
 			{
@@ -109,6 +113,65 @@ namespace Arx.DocSearch.Client
 			object path = docFile;
 			object path2 = Path.Combine(this.seletedPath, Path.GetFileName(docFile));
 			object readOnly = false;
+			try
+			{
+				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
+				string text = string.Empty;
+				foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
+				{
+					MatchLine m = ml.Value;
+					int index = isTarget ? m.TargetLine: ml.Key;
+					double rate =  m.Rate;
+					this.FindMatchLine(index, rate, doc, isTarget);
+				}
+				doc.SaveAs(ref path2, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
+
+			}
+			catch (Exception e)
+			{
+				Debug.WriteLine(e.StackTrace);
+                this.mainForm.WriteLog("WordConverter.EditWord:" + e.Message + "\n"+  e.StackTrace);
+            }
+			finally
+			{
+				if (null != doc)
+				{
+					((_Document)doc).Close();
+					Marshal.ReleaseComObject(doc);  // オブジェクト参照を解放
+					doc = null;
+				}
+			}
+		}
+
+		private void FindMatchLine(int index, double rate, Document doc, bool isTarget) {
+			string line = isTarget ? this.lsTarget[index].Trim() : this.lsSrc[index].Trim();
+			if (0 == line.Length) return;
+			this.mainForm.WriteLog("FindMatchLine:" + line);
+			this.ChangeColorOfDocument(line, rate, doc);
+		}
+
+		private void ChangeColorOfDocument(string line, double rate, Document doc)
+		{
+			var range = doc.Range();
+			if (range.Find.Execute(line)) {
+				Console.WriteLine(range.Text);
+				this.mainForm.WriteLog(range.Text);
+				Color color = Color.White;
+				if (1D == rate) color = Color.LightPink;
+				else if (0.9 <= rate) color = Color.Yellow;
+				else if (0D < rate) color = Color.LightGreen;
+				range.Font.Shading.BackgroundPatternColor = (WdColor)ColorTranslator.ToOle(color);
+				range.Select();
+			}
+		}
+
+		private void EditWord_bak(Application word, string docFile, bool isTarget)
+		{
+			Document doc = null;
+			object miss = System.Reflection.Missing.Value;
+			object path = docFile;
+			object path2 = Path.Combine(this.seletedPath, Path.GetFileName(docFile));
+			object readOnly = false;
 			int index = -1;
 			int nextIndex = -1;
 			int paragraphPos = -1;
@@ -117,12 +180,20 @@ namespace Arx.DocSearch.Client
 			this.mainForm.WriteLog(string.Format("WordConverter.EditWord: path={0} path2={1}", path, path2));
 			try
 			{
-                //throw new Exception("An exception occurs.");
+				//throw new Exception("An exception occurs.");
 				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
 				string text = string.Empty;
-				this.mainForm.WriteLog(string.Format("doc.Paragraphs.Count={0}", doc.Paragraphs.Count));
+				//this.mainForm.WriteLog(string.Format("doc.Paragraphs.Count={0}", doc.Paragraphs.Count));
+				//this.mainForm.WriteLog(string.Format("doc.Tables.Count={0}", doc.Tables.Count));
+				for (int i = 0; i < doc.Tables.Count; i++)
+				{
+					Table table = doc.Tables[i + 1];
+					table.Delete();
+				}
+				//this.mainForm.WriteLog(string.Format("doc.Paragraphs.Count={0}", doc.Paragraphs.Count));
 				for (int i = 0; i < doc.Paragraphs.Count; i++)
 				{
+					if (i < 10) this.mainForm.WriteLog(string.Format("Paragraphs[]={0}", i + 1));
 					Paragraph para = doc.Paragraphs[i + 1];
 					Range r = para.Range;
 					try
@@ -130,8 +201,8 @@ namespace Arx.DocSearch.Client
 						if (0 == (r?.Text?.Trim().Length ?? 0)) continue;
 					}
 					catch (Exception e)
-					{ 
-						this.mainForm.WriteLog(string.Format("path={0} i={1}:{2}\n{3}",path, i,e.Message,e.StackTrace));
+					{
+						this.mainForm.WriteLog(string.Format("path={0} i={1}:{2}\n{3}", path, i, e.Message, e.StackTrace));
 						throw new Exception("An exception occurs.");
 					}
 					bool isDebug = false;
@@ -142,17 +213,19 @@ namespace Arx.DocSearch.Client
 						this.mainForm.WriteLog(string.Format("#### EditWord i={0} paragraphPos={1} r.Text.Length={2}:{3}", i, paragraphPos, r.Text.Trim().Length, str));
 						isDebug = true;
 					}*/
-					/*if (119 == i) isDebug = true;
-					else isDebug = false;*/
-					//if (isDebug) Debug.WriteLine(string.Format("i={0} r.Text={1}#", i, r.Text));
+					if (i < 10) isDebug = true;
+					else isDebug = false;
+					//if (isDebug) this.mainForm.WriteLog(string.Format("i={0} r.Text={1}#", i, r.Text));
 					this.FindParagraph(r.Text, ref paragraphPos, ref nextPos, isTarget, isDebug);
 					//if (65 < i && i < 70) Debug.WriteLine(string.Format("paragraphPos={0} nextPos={1}#", paragraphPos, nextPos));
 					List<string> sentences = new List<string>();
 					StringBuilder sb = new StringBuilder();
+					Console.WriteLine(string.Format("Sentences.Count={0}", r.Sentences.Count));
 					for (int j = 0; j < r.Sentences.Count; j++)
 					{
 						string str = r.Sentences[j + 1].Text;
 						//if (isDebug) Debug.WriteLine(string.Format("count={0} text={1}#", j, str));
+						Console.WriteLine(string.Format("Sentences[{0}].Text:{1}", j + 1, str));
 						if (0 < j)
 						{
 							if (this.StartsWithCapital(str))
@@ -208,8 +281,8 @@ namespace Arx.DocSearch.Client
 			catch (Exception e)
 			{
 				Debug.WriteLine(e.StackTrace);
-                this.mainForm.WriteLog("WordConverter.EditWord:" + e.Message + "\n"+  e.StackTrace);
-            }
+				this.mainForm.WriteLog("WordConverter.EditWord:" + e.Message + "\n" + e.StackTrace);
+			}
 			finally
 			{
 				if (null != doc)
@@ -362,12 +435,12 @@ namespace Arx.DocSearch.Client
 				for (int i = nextPos; i < paragraphs.Count; i++)
 				{
 					string text = this.GetParagraphText(paragraphs[i], isTarget);
-					//if (isDebug) Debug.WriteLine(string.Format("FindParagraph i={0}:text={1}#", i, text));
+					if (isDebug) this.mainForm.WriteLog(string.Format("FindParagraph i={0}:text={1} paragraphPos={2}, nextPos={3}#", i, text, paragraphPos, nextPos));
 					if (0 < text.Trim().Length && 0 <= text.IndexOf(replaced))
 					{
 						paragraphPos = i;
 						if (para.Trim().EndsWith(".")) nextPos = paragraphPos + 1;
-						//if (isDebug) Debug.WriteLine(string.Format("pos={0} replaced={1}#", text.IndexOf(replaced), replaced));
+						if (isDebug) this.mainForm.WriteLog(string.Format("found: text.Index={0} replaced={1} paragraphPos={2}, nextPos={3}#", text.IndexOf(replaced), replaced, paragraphPos, nextPos));
 						return;
 					}
 					//if (isDebug) Debug.WriteLine(string.Format("pos={0} replaced={1}#", text.IndexOf(replaced), replaced));
@@ -390,11 +463,26 @@ namespace Arx.DocSearch.Client
 
 		private void DumpParagraphs(List<List<int>> paragraphs, bool isTarget)
 		{
+			StringBuilder sb = new StringBuilder();
 			for (int i = 0; i < paragraphs.Count; i++)
 			{
 				string text = this.GetParagraphText(paragraphs[i], isTarget);
-				Debug.WriteLine(string.Format("paragrah={0} text={1}", i, text));
+				sb.Append(string.Format("{0}: {1}\n", i, text));
 			}
+			this.mainForm.WriteLog(sb.ToString());
+		}
+
+		private void DumpMatchLines()
+		{
+			StringBuilder sb = new StringBuilder();
+			foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
+			{
+
+				MatchLine m = ml.Value;
+				sb.Append(string.Format("index={0} TargetLine={1} Rate={2}, MatchWords={3}, TotalWords{4}\n", ml.Key, m.TargetLine, m.Rate, m.MatchWords, m.TotalWords));
+			}
+			this.mainForm.WriteLog(sb.ToString());
+
 		}
 
 		private bool StartsWithCapital(string line)

@@ -614,22 +614,22 @@ namespace Arx.DocSearch.Client
 
 		private string ReplaceLine(string line, bool isContinuousNumber, bool excludesTable, bool endsContinuousNumber)
 		{
-			line = Regex.Replace(line, @"[\x00-\x1F\x7F]", "");
-			line = Regex.Replace(line, @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
-			line = Regex.Replace(line, @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
-			line = Regex.Replace(line, @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
-			line = Regex.Replace(line, @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン
-			line = Regex.Replace(line, @"[\u00A9\u00AE\u2022\u2122]", "\""); //UTF-8のスラッシュ
+			line = Regex.Replace(line ?? "", @"[\x00-\x1F\x7F]", "");
+			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
+			line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
+			line = Regex.Replace(line ?? "", @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
+			line = Regex.Replace(line ?? "", @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン
+			line = Regex.Replace(line ?? "", @"[\u00A9\u00AE\u2022\u2122]", "\""); //UTF-8のスラッシュ
 			//スペースに挟まれた「Fig.」で次が大文字でない場合は、文末と混同しないようにドットの後ろのスペースを削除する。
-			line = Regex.Replace(line, @"(^fig| fig)\. +([^A-Z])", "$1.$2", RegexOptions.IgnoreCase);
+			line = Regex.Replace(line ?? "", @"(^fig| fig)\. +([^A-Z])", "$1.$2", RegexOptions.IgnoreCase);
 			//2個以上連続するスペースは1個の半角スペースにする。
-			line = Regex.Replace(line, @"\s+", " ");
+			line = Regex.Replace(line ?? "", @"\s+", " ");
 			//センテンスの終わりで「半角スペース2個」+改行とする。
-			line = Regex.Replace(line, @"\. +", ".  \n"); //ピリオド+半角スペース1個は改行
-			line = Regex.Replace(line, @"。([^\n])", "。  \n($1)"); //読点。
-			line = TextConverter.ZenToHan(line);
-			line = TextConverter.HankToZen(line);
-			if (isContinuousNumber && Regex.IsMatch(line.Trim(), @"^[ 0-9+-]+$"))
+			line = Regex.Replace(line ?? "", @"\. +", ".  \n"); //ピリオド+半角スペース1個は改行
+			line = Regex.Replace(line ?? "", @"。([^\n])", "。  \n($1)"); //読点。
+			line = TextConverter.ZenToHan(line ?? "");
+			line = TextConverter.HankToZen(line ?? "");
+			if (isContinuousNumber && Regex.IsMatch(line ?? "".Trim(), @"^[ 0-9+-]+$"))
 			{
 				if (excludesTable)
 				{
@@ -643,8 +643,8 @@ namespace Arx.DocSearch.Client
 				}
 			}
 			//line = Regex.Replace(line, @"^([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*)", "\n$1$2$3$4  \n"); //【数字】
-			line = Regex.Replace(line, @"^\s*((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
-			line = Regex.Replace(line, @"^\s*([0-9]+)(\.?)", "\n$1$2  \n"); //数字
+			line = Regex.Replace(line ?? "", @"^\s*((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
+			line = Regex.Replace(line ?? "", @"^\s*([0-9]+)(\.?)", "\n$1$2  \n"); //数字
 			//line = Regex.Replace(line, @"([.,:;])", " $1 "); //半角句読点は前後にスペース
 			return line;
 		}
@@ -1239,10 +1239,17 @@ namespace Arx.DocSearch.Client
 
 		private void StartNodeManager()
 		{
-		try {
-                NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
-                NMOpenConfig(0);
-                /*uint DResult = 0;
+			try {
+				Console.WriteLine("StartNodeManager");
+
+				Debug.WriteLine("StartNodeManager");
+				StringBuilder sb = new StringBuilder();
+				sb.Append("Both");
+				StringBuilder sb2 = new StringBuilder();
+				sb.Append("NodeManager_Free.dll")
+;				NMInitialize(sb2, sb);
+                //NMOpenConfig(0);
+                /*uint DResult = 
                 uint Cluster = NMCluster(DResult);
                 for (long NOBoard = 1; NOBoard <= NMBoardCount(Cluster); NOBoard++)
                 {
@@ -1264,9 +1271,14 @@ namespace Arx.DocSearch.Client
         }
         private void StopNodeManager()
         {
+			StringBuilder sb = new StringBuilder();
+			sb.Append("Both");
 
-            NMInitialize(DllFileName, TNodeManagerKind.NMKBoth);
-            NMOpenConfig(0);
+			StringBuilder sb2 = new StringBuilder();
+			sb.Append("NodeManager_Free.dll");
+			NMInitialize(sb2, sb);
+
+			NMOpenConfig(0);
             uint DResult = 0;
             uint Cluster = NMCluster(DResult);
             for (long NOBoard = 1; NOBoard <= NMBoardCount(Cluster); NOBoard++)

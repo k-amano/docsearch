@@ -13,8 +13,8 @@ namespace Arx.DocSearch.Client
         }
 
 
-        [DllImport(DllFileName)]
-        public extern static void NMInitialize(string DLLFileName, TNodeManagerKind Kind);
+        [DllImport(DllFileName, CallingConvention=CallingConvention.StdCall, CharSet= CharSet.Unicode)]
+        public extern static void NMInitialize(StringBuilder f, StringBuilder kind);
         [DllImport(DllFileName)]
         public extern static void NMFinalize();
         [DllImport(DllFileName)]
