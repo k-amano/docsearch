@@ -54,7 +54,7 @@ namespace Arx.DocSearch.Client
 			this.RecalculateRate();
 			this.SetSrcText();
 			this.SetTargetText();
-			this.DumpParagraphs();
+			//this.DumpParagraphs();
 			//フォルダ選択ダイアログ上部に表示する説明テキストを指定する
 			this.folderBrowserDialog1.Description = "変換したWord文書の保存先フォルダを指定してください。";
 		}

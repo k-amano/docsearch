@@ -26,10 +26,18 @@ namespace Arx.DocSearch.Client
                 MessageBox.Show("このアプリケーションは複数起動できません。");
                 return;
             }
-            // Console表示
-            AllocConsole();
-            // コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
-            //Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+			string[] cmds = System.Environment.GetCommandLineArgs();
+			//コマンドライン引数を列挙する
+			foreach (string cmd in cmds)
+			{
+				if ("/d".Equals(cmd.ToLower())) {
+					// Console表示
+					AllocConsole();
+					// コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
+					Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+
+				}
+			}
             // ThreadExceptionイベント・ハンドラを登録する
             Application.ThreadException += new
               ThreadExceptionEventHandler(Application_ThreadException);

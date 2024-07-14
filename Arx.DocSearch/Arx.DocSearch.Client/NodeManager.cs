@@ -13,8 +13,8 @@ namespace Arx.DocSearch.Client
         }
 
 
-        [DllImport(DllFileName, CallingConvention=CallingConvention.StdCall, CharSet= CharSet.Unicode)]
-        public extern static void NMInitialize(StringBuilder f, StringBuilder kind);
+        [DllImport(DllFileName)]
+        public extern static void NMInitializeA(string kind);
         [DllImport(DllFileName)]
         public extern static void NMFinalize();
         [DllImport(DllFileName)]
@@ -31,15 +31,15 @@ namespace Arx.DocSearch.Client
         public extern static void NMStartProgram(long UserIndex, string DLLFileName, string Params,  uint ProcessHandle);
 
         [DllImport(DllFileName)]
-        public extern static void NMStopProgram(long UserIndexe);
+        public extern static void NMStopProgram(long UserIndex);
 
         [DllImport(DllFileName)]
-        public extern static uint NMCluster(uint DResult);
+        public extern static void NMGetCluster(ref uint DResult);
 
         [DllImport(DllFileName)]
-        public extern static long NMBoardCount(uint DCluster);
+        public extern static void NMGetBoardCount(uint DCluster, ref long Result);
         [DllImport(DllFileName)]
-        public extern static uint NMBoard(uint DCluster, long BoardIndex);
+        public extern static void NMGetBoard(uint DCluster, long BoardIndex, ref uint DResult);
 
     }
 }

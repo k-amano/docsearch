@@ -24,8 +24,8 @@ namespace Arx.DocSearch.Client
 {
 	public partial class MainForm : Form
 	{
-		//[DllImport("kernel32.dll")]
-		//private static extern bool AllocConsole();
+		[DllImport("kernel32.dll")]
+		private static extern bool AllocConsole();
 		[DllImport("xd2txlib.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
 
 		public static extern int ExtractText(
@@ -43,9 +43,9 @@ namespace Arx.DocSearch.Client
 			this.timer1.Interval = 5000;
 			this.isProgressing = false;
 			// Console表示
-			//AllocConsole();
+			AllocConsole();
 			// コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
-			//Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+			Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 		}
 		#endregion
 
@@ -226,7 +226,7 @@ namespace Arx.DocSearch.Client
 			this.timer1.Start();
 			//this.job = new SearchJob(this);
 			//Thread.Sleep(5000);
-			//this.StartNodeManager();
+			this.StartNodeManager();
 			if (0 < this.srcIndex)
 			{
                 this.AddReservation();
@@ -1241,50 +1241,46 @@ namespace Arx.DocSearch.Client
 		{
 			try {
 				Console.WriteLine("StartNodeManager");
-
-				Debug.WriteLine("StartNodeManager");
-				StringBuilder sb = new StringBuilder();
-				sb.Append("Both");
-				StringBuilder sb2 = new StringBuilder();
-				sb.Append("NodeManager_Free.dll")
-;				NMInitialize(sb2, sb);
-                //NMOpenConfig(0);
-                /*uint DResult = 
-                uint Cluster = NMCluster(DResult);
-                for (long NOBoard = 1; NOBoard <= NMBoardCount(Cluster); NOBoard++)
+;				NMInitializeA("Both");
+				NMOpenConfig(0);
+				uint Cluster = 0;
+				NMGetCluster(ref Cluster);
+				long BoardCount = 0;
+				NMGetBoardCount(Cluster, ref BoardCount);
+				Debug.WriteLine(string.Format("Cluster={0} BoardCount={1}", Cluster, BoardCount));
+				for (long NOBoard = 1; NOBoard <= BoardCount; NOBoard++)
                 {
-                    uint Board = NMBoard(Cluster, NOBoard);
+					uint Board = 0;
+					NMGetBoard(Cluster, NOBoard, ref Board);
                     NMLogIn(Board);
-                    string FileName = "";
+                    string FileName = "Arx.DocSearch.Agent_1_8.exe";
                     uint ProcessHandle = 0;
                     NMStartProgram(1, FileName, "/IndexOfUser=01", ProcessHandle);
                     NMLogOut();
 
                 }
                 NodeManager.NMCloseConfig();
-                NodeManager.NMFinalize();*/
+                NodeManager.NMFinalize();
 
-            } catch (Exception ex) {
+			} catch (Exception ex) {
 				this.WriteLog(ex.Message);
 			}
 
         }
         private void StopNodeManager()
         {
-			StringBuilder sb = new StringBuilder();
-			sb.Append("Both");
-
-			StringBuilder sb2 = new StringBuilder();
-			sb.Append("NodeManager_Free.dll");
-			NMInitialize(sb2, sb);
-
+			NMInitializeA("Both");
 			NMOpenConfig(0);
             uint DResult = 0;
-            uint Cluster = NMCluster(DResult);
-            for (long NOBoard = 1; NOBoard <= NMBoardCount(Cluster); NOBoard++)
+			uint Cluster = 0;
+			NMGetCluster(ref Cluster);
+			long BoardCount = 0;
+			NMGetBoardCount(Cluster, ref BoardCount);
+			for (long NOBoard = 1; NOBoard <= BoardCount ; NOBoard++)
             {
-                uint Board = NMBoard(Cluster, NOBoard);
-                NMLogIn(Board);
+				uint Board = 0;
+				NMGetBoard(Cluster, NOBoard, ref Board);
+				NMLogIn(Board);
                 NMStopProgram(1);
                 NMLogOut();
 
