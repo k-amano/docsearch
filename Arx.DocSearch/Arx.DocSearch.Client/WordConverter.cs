@@ -15,6 +15,7 @@ using System.Runtime.CompilerServices;
 using NPOI.SS.Formula.Functions;
 using static System.Net.Mime.MediaTypeNames;
 using NPOI.Util;
+using NPOI.SS.Formula;
 
 namespace Arx.DocSearch.Client
 {
@@ -117,12 +118,14 @@ namespace Arx.DocSearch.Client
 			{
 				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
 				string text = string.Empty;
+				
 				foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
 				{
 					MatchLine m = ml.Value;
 					int index = isTarget ? m.TargetLine: ml.Key;
 					double rate =  m.Rate;
-					this.FindMatchLine(index, rate, doc, isTarget);
+					this.FindMatchLine(index, rate, isTarget, doc);
+					//if (index > 500) break;
 				}
 				doc.SaveAs(ref path2, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
 
@@ -143,26 +146,70 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private void FindMatchLine(int index, double rate, Document doc, bool isTarget) {
+		private void FindMatchLine(int index, double rate, bool isTarget, Document doc)
+		{
+			Range range = doc.Range();
 			string line = isTarget ? this.lsTarget[index].Trim() : this.lsSrc[index].Trim();
 			if (0 == line.Length) return;
-			this.mainForm.WriteLog("FindMatchLine:" + line);
-			this.ChangeColorOfDocument(line, rate, doc);
+			if (index < 1000) this.mainForm.WriteLog(string.Format("FindMatchLine:{0}:{1}:{2:0.00}:{3}", isTarget, index, rate, line));
+			this.ChangeColorOfDocument(line, rate, index, range);
 		}
 
-		private void ChangeColorOfDocument(string line, double rate, Document doc)
+		private void ChangeColorOfDocument(string line, double rate, int index, Range range)
 		{
-			var range = doc.Range();
-			if (range.Find.Execute(line)) {
-				Console.WriteLine(range.Text);
-				this.mainForm.WriteLog(range.Text);
-				Color color = Color.White;
-				if (1D == rate) color = Color.LightPink;
-				else if (0.9 <= rate) color = Color.Yellow;
-				else if (0D < rate) color = Color.LightGreen;
-				range.Font.Shading.BackgroundPatternColor = (WdColor)ColorTranslator.ToOle(color);
-				range.Select();
+			string searchPattern = "";
+			try
+			{
+				line = line.Trim();
+				if (180 < line.Length)
+				{
+					// 先頭100文字と末尾100文字を使用し、特殊文字をエスケープ
+					string start = EscapeSpecialChars(line.Substring(0, 90));
+					string end = EscapeSpecialChars(line.Substring(line.Length - 90));
+					searchPattern = start + "*" + end;
+				}
+				else
+				{
+					searchPattern = EscapeSpecialChars(line);
+				}
+				Regex re = new Regex(@"[""']");
+				searchPattern = re.Replace(searchPattern, "##f3qgSJhXgamY##", 7, 0); //次の行で変換されないように一旦別文字列とする
+				searchPattern = Regex.Replace(searchPattern, @"\s*[""']\s*", "*");
+				searchPattern = Regex.Replace(searchPattern, @"##f3qgSJhXgamY##", @"[“”’""']");//本来置き換えたい文字列に変換
+				searchPattern = Regex.Replace(searchPattern, @"\s*\*\s*", "*");
+				searchPattern = Regex.Replace(searchPattern, @" +", " @");
+				searchPattern = Regex.Replace(searchPattern, @"\.(?!$)", "[. ]@");
+				searchPattern = Regex.Replace(searchPattern, @"\.$", @"\.");
+				searchPattern = searchPattern.Trim('*');
+				if (index < 1000) this.mainForm.WriteLog(string.Format("searchPattern={0}", searchPattern));
+				if (range.Find.Execute(searchPattern, MatchWildcards: true))
+				{
+					DoChangeColor(range, rate, index);
+				}
+			} catch(Exception e) {
+				this.mainForm.WriteLog("searchPattern:" + searchPattern + "\n" +e.Message);
 			}
+		}
+
+		private void DoChangeColor(Range range, double rate,int index)
+		{
+			Color color = Color.White;
+			if (1D == rate) color = Color.LightPink;
+			else if (0.9 <= rate) color = Color.Yellow;
+			else if (0D < rate) color = Color.LightGreen;
+			range.Font.Shading.BackgroundPatternColor = (WdColor)ColorTranslator.ToOle(color);
+			range.Select();
+			if (index < 1000) this.mainForm.WriteLog(string.Format("DoChangeColor:{0:0.00}:{1}:{2}", rate, color, range.Text));
+		}
+
+		private string EscapeSpecialChars(string input)
+		{
+			string[] specialChars = new[] { "\\", "(", ")", "[", "]", "{", "}", "^", "$", "|", "?", "*", "+", "<", ">" };
+			foreach (var specialChar in specialChars)
+			{
+				input = input.Replace(specialChar, "\\" + specialChar);
+			}
+			return input;
 		}
 
 		private void EditWord_bak(Application word, string docFile, bool isTarget)

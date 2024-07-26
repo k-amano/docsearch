@@ -18,7 +18,6 @@ using NPOI.HSSF.Util;
 using View = System.Windows.Forms.View;
 using BorderStyle = NPOI.SS.UserModel.BorderStyle;
 using static Arx.DocSearch.Client.NodeManager;
-using NPOI.SS.Formula.Functions;
 
 namespace Arx.DocSearch.Client
 {
@@ -43,9 +42,9 @@ namespace Arx.DocSearch.Client
 			this.timer1.Interval = 5000;
 			this.isProgressing = false;
 			// Console表示
-			AllocConsole();
+			//AllocConsole();
 			// コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
-			Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+			//Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 		}
 		#endregion
 
@@ -226,7 +225,7 @@ namespace Arx.DocSearch.Client
 			this.timer1.Start();
 			//this.job = new SearchJob(this);
 			//Thread.Sleep(5000);
-			this.StartNodeManager();
+			//this.StartNodeManager();
 			if (0 < this.srcIndex)
 			{
                 this.AddReservation();
@@ -511,10 +510,27 @@ namespace Arx.DocSearch.Client
 						//if ( i<460) Console.WriteLine(string.Format("i={0}, pos={1}, endsContinuousNumber={2}", i, pos, endsContinuousNumber));
 						line = this.ReplaceLine(line, isContinuousNumber, excludesTable, endsContinuousNumber);
 						//if (i ==457) Console.WriteLine(string.Format("i={0} line={1} isContinuousNumber={2} excludesTable={3} endsContinuousNumber={4}", i, line, isContinuousNumber, excludesTable, endsContinuousNumber));
-						writer.Write(line);
+						string[] sentences = line.Split('.');
 						bool startsWithCapital = false;
+						for (int j = 0; j < sentences.Length; j++)
+						{
+							string sentence = sentences[j];
+							writer.Write(sentence);
+							if (j < sentences.Length - 1) {
+								startsWithCapital = false;
+								if (this.StartsWithCapital(sentences[j + 1])) startsWithCapital = true;
+								if (startsWithCapital)
+								{
+									writer.Write("\n");//次が大文字で始まっていれば改行する
+								}
+								else if (!string.IsNullOrEmpty(sentence.Trim()))
+								{
+									writer.Write(" "); //それ以外は空白を追加。
+								}
+							}	
+						}
+						startsWithCapital = false;
 						if (i + 1 < paragraphs.Length && this.StartsWithCapital(paragraphs[i + 1])) startsWithCapital = true;
-						//if (i < 5) Debug.WriteLine(string.Format("startsWithCapital={0} next={1}", startsWithCapital, paragraphs[i + 1]));
 						if (startsWithCapital || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
 						{
 							writer.Write("\n");//ピリオドまたは読点で終わっていれば改行する
@@ -523,6 +539,7 @@ namespace Arx.DocSearch.Client
 						{
 							writer.Write(" "); //それ以外は空白を追加。
 						}
+
 					}
 					writer.Close();
 				}
@@ -1163,6 +1180,7 @@ namespace Arx.DocSearch.Client
 
 		public void WriteLog(string Log)
 		{
+			if (string.IsNullOrEmpty(Log.Trim())) return;
 			Debug.WriteLine(Log);
 			this.logs.Add(string.Format("[{0}] {1}", DateTime.Now, Log));
 		}
@@ -1245,10 +1263,10 @@ namespace Arx.DocSearch.Client
 				NMOpenConfig(0);
 				uint Cluster = 0;
 				NMGetCluster(ref Cluster);
-				long BoardCount = 0;
+				int BoardCount = 0;
 				NMGetBoardCount(Cluster, ref BoardCount);
 				Debug.WriteLine(string.Format("Cluster={0} BoardCount={1}", Cluster, BoardCount));
-				for (long NOBoard = 1; NOBoard <= BoardCount; NOBoard++)
+				for (int NOBoard = 1; NOBoard <= BoardCount; NOBoard++)
                 {
 					uint Board = 0;
 					NMGetBoard(Cluster, NOBoard, ref Board);
@@ -1274,9 +1292,9 @@ namespace Arx.DocSearch.Client
             uint DResult = 0;
 			uint Cluster = 0;
 			NMGetCluster(ref Cluster);
-			long BoardCount = 0;
+			int BoardCount = 0;
 			NMGetBoardCount(Cluster, ref BoardCount);
-			for (long NOBoard = 1; NOBoard <= BoardCount ; NOBoard++)
+			for (int NOBoard = 1; NOBoard <= BoardCount ; NOBoard++)
             {
 				uint Board = 0;
 				NMGetBoard(Cluster, NOBoard, ref Board);

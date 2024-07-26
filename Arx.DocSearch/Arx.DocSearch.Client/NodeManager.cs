@@ -28,18 +28,18 @@ namespace Arx.DocSearch.Client
         public extern static void NMCloseConfig();
 
         [DllImport(DllFileName)]
-        public extern static void NMStartProgram(long UserIndex, string DLLFileName, string Params,  uint ProcessHandle);
+        public extern static void NMStartProgram(int UserIndex, string DLLFileName, string Params,  uint ProcessHandle);
 
         [DllImport(DllFileName)]
-        public extern static void NMStopProgram(long UserIndex);
+        public extern static void NMStopProgram(int UserIndex);
 
         [DllImport(DllFileName)]
         public extern static void NMGetCluster(ref uint DResult);
 
         [DllImport(DllFileName)]
-        public extern static void NMGetBoardCount(uint DCluster, ref long Result);
+        public extern static void NMGetBoardCount(uint DCluster, ref int Result);
         [DllImport(DllFileName)]
-        public extern static void NMGetBoard(uint DCluster, long BoardIndex, ref uint DResult);
+        public extern static void NMGetBoard(uint DCluster, int BoardIndex, ref uint DResult);
 
     }
 }
