@@ -3,18 +3,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Word;
 using Application = Microsoft.Office.Interop.Word.Application;
 using Arx.DocSearch.Util;
-using System.Runtime.CompilerServices;
-using NPOI.SS.Formula.Functions;
-using static System.Net.Mime.MediaTypeNames;
-using NPOI.Util;
+//using NPOI.SS.Formula.Functions;
+using System.Threading;
 using NPOI.SS.Formula;
 
 namespace Arx.DocSearch.Client
@@ -46,10 +44,12 @@ namespace Arx.DocSearch.Client
 		List<List<int>> srcParagraphs;
 		List<List<int>> targetParagraphs;
         private MainForm mainForm;
-        #endregion
+		// ロック用のインスタンス
+		private static ReaderWriterLock rwl = new ReaderWriterLock();
+		#endregion
 
-        #region メソッド
-        public void Run()
+		#region メソッド
+		public void Run()
 		{
 			this.GetSrcParagraphs();
 			this.GetTargetParagraphs();
@@ -117,14 +117,16 @@ namespace Arx.DocSearch.Client
 			try
 			{
 				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
+				// 特殊空白文字を置換
+				this.ReplaceSpecialChar(doc, "^s", " ", true);
+				this.ReplaceSpecialChar(doc, "^-", "", true);
 				string text = string.Empty;
-				
 				foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
 				{
 					MatchLine m = ml.Value;
 					int index = isTarget ? m.TargetLine: ml.Key;
 					double rate =  m.Rate;
-					this.FindMatchLine(index, rate, isTarget, doc);
+					this.FindMatchLine(index, rate, isTarget, doc, docFile);
 					//if (index > 500) break;
 				}
 				doc.SaveAs(ref path2, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
@@ -146,16 +148,16 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private void FindMatchLine(int index, double rate, bool isTarget, Document doc)
+		private void FindMatchLine(int index, double rate, bool isTarget, Document doc, string docFile)
 		{
 			Range range = doc.Range();
 			string line = isTarget ? this.lsTarget[index].Trim() : this.lsSrc[index].Trim();
 			if (0 == line.Length) return;
 			if (index < 1000) this.mainForm.WriteLog(string.Format("FindMatchLine:{0}:{1}:{2:0.00}:{3}", isTarget, index, rate, line));
-			this.ChangeColorOfDocument(line, rate, index, range);
+			this.ChangeColorOfDocument(line, rate, index, range, doc, docFile);
 		}
 
-		private void ChangeColorOfDocument(string line, double rate, int index, Range range)
+		private void ChangeColorOfDocument(string line, double rate, int index, Range range, Document doc, string docFile)
 		{
 			string searchPattern = "";
 			try
@@ -175,16 +177,20 @@ namespace Arx.DocSearch.Client
 				Regex re = new Regex(@"[""']");
 				searchPattern = re.Replace(searchPattern, "##f3qgSJhXgamY##", 7, 0); //次の行で変換されないように一旦別文字列とする
 				searchPattern = Regex.Replace(searchPattern, @"\s*[""']\s*", "*");
-				searchPattern = Regex.Replace(searchPattern, @"##f3qgSJhXgamY##", @"[“”’""']");//本来置き換えたい文字列に変換
+				searchPattern = Regex.Replace(searchPattern, @"##f3qgSJhXgamY##", @"[“”’""'®]");//本来置き換えたい文字列に変換
 				searchPattern = Regex.Replace(searchPattern, @"\s*\*\s*", "*");
-				searchPattern = Regex.Replace(searchPattern, @" +", " @");
-				searchPattern = Regex.Replace(searchPattern, @"\.(?!$)", "[. ]@");
+				searchPattern = Regex.Replace(searchPattern, @"(:|;|and) +", "$1*");
+				searchPattern = Regex.Replace(searchPattern, @"\. *(?!$)", "[. ]@");
+				searchPattern = Regex.Replace(searchPattern, @" +(?!\])", " @");
 				searchPattern = Regex.Replace(searchPattern, @"\.$", @"\.");
 				searchPattern = searchPattern.Trim('*');
 				if (index < 1000) this.mainForm.WriteLog(string.Format("searchPattern={0}", searchPattern));
 				if (range.Find.Execute(searchPattern, MatchWildcards: true))
 				{
 					DoChangeColor(range, rate, index);
+				} else {
+					this.ResearchMatchLine(line, rate, index, doc, docFile);
+					//this.WriteMatchLine(line, searchPattern, rate, index, docFile);
 				}
 			} catch(Exception e) {
 				this.mainForm.WriteLog("searchPattern:" + searchPattern + "\n" +e.Message);
@@ -537,7 +543,70 @@ namespace Arx.DocSearch.Client
 			if (Regex.IsMatch(line ?? "", @"^(\s*[A-Z])")) return true;
 			else return false;
 		}
-		#endregion
-	}
+
+		private void ResearchMatchLine(string line, double rate, int index, Document doc, string docFile)
+		{
+			// 文書の全テキストを取得（改行を含む）
+			string docText = doc.Content.Text;
+
+			// 検索テキストを正規表現パターンに変換
+			// \s*を使用して、docText内の任意の空白文字（改行を含む）にマッチさせる
+			string pattern = string.Join(@"\s*", line.Split().Select(Regex.Escape));
+
+			// 正規表現を使用して検索
+			Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
+
+			if (match.Success)
+			{
+				// 見つかったテキストに黄色の背景色をつける
+				Range range = doc.Range(match.Index, match.Index + match.Length);
+				DoChangeColor(range, rate, index);
+			}else{
+				WriteMatchLine(line, string.Empty, rate, index, docFile);
+			}
+		}
+
+		private void WriteMatchLine(string line, string searchPattern, double rate, int index, string docFile)
+		{
+			string filename = Path.Combine(this.seletedPath, Path.GetFileName(docFile) + ".txt");
+			string message = string.Format("index:{0} rate:{1:0.00}\nline:\n{2}\n", index, rate, line);
+			rwl.AcquireWriterLock(Timeout.Infinite);
+			// ファイルオープン
+			try
+			{
+				using (FileStream fs = File.Open(filename, FileMode.Append))
+				using (StreamWriter writer = new StreamWriter(fs))
+				{
+					writer.WriteLine(message);
+				}
+			}
+			finally
+			{
+				// ロック解除は finally の中で行う
+				rwl.ReleaseWriterLock();
+			}
+		}
+		private void ReplaceSpecialChar(Document doc, string text, string replacement, bool matchWildcards)
+		{
+			// 特殊空白文字を置換
+			Find find = doc.Content.Find;
+			find.ClearFormatting();
+			find.Replacement.ClearFormatting();
+			find.Text = text;
+			find.Replacement.Text = replacement;
+			find.Forward = true;
+			find.Wrap = WdFindWrap.wdFindContinue;
+			find.Format = false;
+			find.MatchCase = false;
+			find.MatchWholeWord = false;
+			find.MatchPhrase = false;
+			find.MatchSoundsLike = false;
+			find.MatchAllWordForms = false;
+			find.MatchFuzzy = false;
+			find.MatchWildcards = matchWildcards;  // ワイルドカード検索を有効化
+			find.Execute(Replace: WdReplace.wdReplaceAll);
+		}
+			#endregion
+		}
 }
 

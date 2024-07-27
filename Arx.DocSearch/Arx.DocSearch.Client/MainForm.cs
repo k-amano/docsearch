@@ -512,23 +512,26 @@ namespace Arx.DocSearch.Client
 						//if (i ==457) Console.WriteLine(string.Format("i={0} line={1} isContinuousNumber={2} excludesTable={3} endsContinuousNumber={4}", i, line, isContinuousNumber, excludesTable, endsContinuousNumber));
 						string[] sentences = line.Split('.');
 						bool startsWithCapital = false;
+						StringBuilder sb = new StringBuilder();
 						for (int j = 0; j < sentences.Length; j++)
 						{
 							string sentence = sentences[j];
-							writer.Write(sentence);
+							sb.Append(sentence.Trim());
 							if (j < sentences.Length - 1) {
 								startsWithCapital = false;
 								if (this.StartsWithCapital(sentences[j + 1])) startsWithCapital = true;
 								if (startsWithCapital)
 								{
-									writer.Write("\n");//次が大文字で始まっていれば改行する
+									sb.Append(".\n");//次が大文字で始まっていれば改行する
 								}
 								else if (!string.IsNullOrEmpty(sentence.Trim()))
 								{
-									writer.Write(" "); //それ以外は空白を追加。
+									sb.Append(". "); //それ以外は空白を追加。
 								}
 							}	
 						}
+						writer.Write(sb.ToString());
+						if (line.Trim().EndsWith(".") && !sb.ToString().Trim().EndsWith(".")) writer.Write(". ");
 						startsWithCapital = false;
 						if (i + 1 < paragraphs.Length && this.StartsWithCapital(paragraphs[i + 1])) startsWithCapital = true;
 						if (startsWithCapital || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
