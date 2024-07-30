@@ -634,6 +634,7 @@ namespace Arx.DocSearch.Client
 
 		private string ReplaceLine(string line, bool isContinuousNumber, bool excludesTable, bool endsContinuousNumber)
 		{
+			line = Regex.Replace(line ?? "", @"\s*SEQ Paragraph\s+\\#\s+""?\[\d+\]""?\s+(\\\*\s*MERGEFORMAT\s*)+", "");//フィールドコードを削除
 			line = Regex.Replace(line ?? "", @"[\x00-\x1F\x7F]", "");
 			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
 			line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
@@ -671,7 +672,7 @@ namespace Arx.DocSearch.Client
 
 		private bool StartsWithCapital(string line)
 		{
-			if (Regex.IsMatch(line, @"^(\s*[A-Z])")) return true;
+			if (Regex.IsMatch(line, @"^(\s*[A-Z][^.])")) return true;
 			else return false;
 		}
 

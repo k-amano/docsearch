@@ -60,7 +60,7 @@ namespace Arx.DocSearch.Util
 			try
 			{
 				using (FileStream fs = File.Open(filename, FileMode.Append))
-				using (StreamWriter writer = new StreamWriter(fs))
+				using (StreamWriter writer = new StreamWriter(fs, Encoding.UTF8))
 				{
 					// 1 行書き込み
 					if (hasTimeStamp)

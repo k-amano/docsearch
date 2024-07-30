@@ -120,6 +120,8 @@ namespace Arx.DocSearch.Client
 				// 特殊空白文字を置換
 				this.ReplaceSpecialChar(doc, "^s", " ", true);
 				this.ReplaceSpecialChar(doc, "^-", "", true);
+				doc.Fields.ToggleShowCodes();
+				doc.Fields.Unlink();
 				string text = string.Empty;
 				foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
 				{
@@ -163,7 +165,7 @@ namespace Arx.DocSearch.Client
 			try
 			{
 				line = line.Trim();
-				if (180 < line.Length)
+				/*if (180 < line.Length)
 				{
 					// 先頭100文字と末尾100文字を使用し、特殊文字をエスケープ
 					string start = EscapeSpecialChars(line.Substring(0, 90));
@@ -191,7 +193,8 @@ namespace Arx.DocSearch.Client
 				} else {
 					this.ResearchMatchLine(line, rate, index, doc, docFile);
 					//this.WriteMatchLine(line, searchPattern, rate, index, docFile);
-				}
+				}*/
+				this.ResearchMatchLine(line, rate, index, doc, docFile);
 			} catch(Exception e) {
 				this.mainForm.WriteLog("searchPattern:" + searchPattern + "\n" +e.Message);
 			}
@@ -201,7 +204,7 @@ namespace Arx.DocSearch.Client
 		{
 			Color color = Color.White;
 			if (1D == rate) color = Color.LightPink;
-			else if (0.9 <= rate) color = Color.Yellow;
+			else if (0.9 <= rate) color = Color.LightCyan;
 			else if (0D < rate) color = Color.LightGreen;
 			range.Font.Shading.BackgroundPatternColor = (WdColor)ColorTranslator.ToOle(color);
 			range.Select();
@@ -218,6 +221,18 @@ namespace Arx.DocSearch.Client
 			return input;
 		}
 
+		private string EscapeRegexSpecialChars(string input)
+		{
+			string[] specialChars = { "\\", ".", "+", "*", "?", "[", "^", "]", "$", "(", ")", "{", "}", "=", "!", "<", ">", "|", ":", "-" };
+			string escapedInput = input;
+
+			foreach (string specialChar in specialChars)
+			{
+				escapedInput = escapedInput.Replace(specialChar, "\\" + specialChar);
+			}
+
+			return escapedInput;
+		}
 		private void EditWord_bak(Application word, string docFile, bool isTarget)
 		{
 			Document doc = null;
@@ -548,28 +563,60 @@ namespace Arx.DocSearch.Client
 		{
 			// 文書の全テキストを取得（改行を含む）
 			string docText = doc.Content.Text;
-
 			// 検索テキストを正規表現パターンに変換
-			// \s*を使用して、docText内の任意の空白文字（改行を含む）にマッチさせる
-			string pattern = string.Join(@"\s*", line.Split().Select(Regex.Escape));
-
+			string pattern = CreateSearchPattern(line);
 			// 正規表現を使用して検索
 			Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
-
 			if (match.Success)
 			{
 				// 見つかったテキストに黄色の背景色をつける
 				Range range = doc.Range(match.Index, match.Index + match.Length);
 				DoChangeColor(range, rate, index);
 			}else{
-				WriteMatchLine(line, string.Empty, rate, index, docFile);
+				WriteMatchLine(line, pattern, rate, index, docFile);
 			}
 		}
 
-		private void WriteMatchLine(string line, string searchPattern, double rate, int index, string docFile)
+		/*private string CreateSearchPattern(string searchText)
+		{
+			// 引用符を正規表現パターンに変換
+			string quotedText = Regex.Replace(searchText, @"[“”""]", @"[“”®–""]");
+			quotedText = Regex.Replace(quotedText, @"[’']", @"[’']");
+
+			// 単語ごとに分割し、エスケープして結合
+			string[] words = quotedText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+			return string.Join(@"\s*", words.Select(word => Regex.Escape(word)));
+		}*/
+
+		private string CreateSearchPattern(string searchText)
+		{
+			// Replace smart quotes with regular quotes
+			string normalizedText = Regex.Replace(searchText, @"[’']", "'");
+
+			// Split the text into words
+			string[] words = normalizedText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+			// Process each word
+			string[] processedWords = words.Select(word =>
+			{
+				// Escape special regex characters except [ and ]
+				string escaped = Regex.Replace(word, @"[.^$*+?()[\]\\|{}]", @"\$&");
+
+				// Handle apostrophes specially
+				escaped = Regex.Replace(escaped, @"'", @"[’']");
+				escaped = Regex.Replace(escaped, @"""", @"[“”®–""]");
+
+				return escaped;
+			}).ToArray();
+
+			// Join the words with flexible whitespace
+			return string.Join(@"\s*", processedWords);
+		}
+
+		private void WriteMatchLine(string line, string pattern, double rate, int index, string docFile)
 		{
 			string filename = Path.Combine(this.seletedPath, Path.GetFileName(docFile) + ".txt");
-			string message = string.Format("index:{0} rate:{1:0.00}\nline:\n{2}\n", index, rate, line);
+			string message = string.Format("index:{0} rate:{1:0.00}\nline:\n{2}\npattern:\n{3}\n", index, rate, line, pattern);
 			rwl.AcquireWriterLock(Timeout.Infinite);
 			// ファイルオープン
 			try
