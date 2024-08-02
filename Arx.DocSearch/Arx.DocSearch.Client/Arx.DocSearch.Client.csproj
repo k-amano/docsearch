@@ -71,6 +71,12 @@
     <Reference Include="DiffPlex">
       <HintPath>..\..\lib\DiffPlex-1.2.0\Net40\DiffPlex.dll</HintPath>
     </Reference>
+    <Reference Include="DocumentFormat.OpenXml, Version=3.1.0.0, Culture=neutral, PublicKeyToken=8fb06cb64d019a17, processorArchitecture=MSIL">
+      <HintPath>..\packages\DocumentFormat.OpenXml.3.1.0\lib\net46\DocumentFormat.OpenXml.dll</HintPath>
+    </Reference>
+    <Reference Include="DocumentFormat.OpenXml.Framework, Version=3.1.0.0, Culture=neutral, PublicKeyToken=8fb06cb64d019a17, processorArchitecture=MSIL">
+      <HintPath>..\packages\DocumentFormat.OpenXml.Framework.3.1.0\lib\net46\DocumentFormat.OpenXml.Framework.dll</HintPath>
+    </Reference>
     <Reference Include="GProject">
       <HintPath>..\..\lib\Xyn.Util\GProject.dll</HintPath>
     </Reference>
@@ -100,6 +106,7 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
     <Reference Include="Xyn.Util">
       <HintPath>..\..\lib\Xyn.Util\Xyn.Util.dll</HintPath>
     </Reference>
@@ -163,6 +170,7 @@
     <None Include="Arx.DocSearch.Client_2_TemporaryKey.pfx" />
     <None Include="Arx.DocSearch.Client_3_TemporaryKey.pfx" />
     <None Include="Arx.DocSearch.Client_TemporaryKey.pfx" />
+    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

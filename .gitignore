@@ -55,3 +55,4 @@ bin/
 
 *.vsidx
 *.vs/
+packages/
