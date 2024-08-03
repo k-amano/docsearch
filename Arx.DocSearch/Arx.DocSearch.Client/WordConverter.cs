@@ -117,7 +117,7 @@ namespace Arx.DocSearch.Client
 			string targetPath = Path.Combine(this.seletedPath, Path.GetFileName(docFile));
 			File.Copy(docFile, targetPath, true);
 			// OpenXML を使用して文書を処理
-			this.ProcessDocumentContent(targetPath);
+			this.ReplaceSymbolChars(targetPath);
 			Document doc = null;
 			object miss = System.Reflection.Missing.Value;
 			object path = targetPath;
@@ -133,12 +133,13 @@ namespace Arx.DocSearch.Client
 				string docText = doc.Content.Text;
 				docText = Regex.Replace(docText, @"\uF06D", " ");//ミクロン記号μ
 				string text = string.Empty;
+				int pos = 0;
 				foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
 				{
 					MatchLine m = ml.Value;
 					int index = isTarget ? m.TargetLine: ml.Key;
 					double rate =  m.Rate;
-					this.FindMatchLine(index, rate, isTarget, doc, docFile, docText);
+					this.FindMatchLine(index, rate, isTarget, doc, docFile, docText, ref pos);
 					//if (index > 500) break;
 				}
 				doc.SaveAs(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
@@ -160,15 +161,47 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private void FindMatchLine(int index, double rate, bool isTarget, Document doc, string docFile, string docText)
+		private void FindMatchLine(int index, double rate, bool isTarget, Document doc, string docFile, string docText, ref int pos)
 		{
-			Range range = doc.Range();
 			string line = isTarget ? this.lsTarget[index].Trim() : this.lsSrc[index].Trim();
 			if (0 == line.Length) return;
 			try
 			{
-				line = line.Trim();
-				this.ResearchMatchLine(line, rate, index, doc, docFile, docText);
+				// 検索テキストを正規表現パターンに変換
+				// Replace smart quotes with regular quotes
+				string normalizedText = Regex.Replace(line, @"(\.|:|;)(?!\s)", "$1 "); //「.:;」の後に空白を入れる
+				normalizedText = Regex.Replace(normalizedText, @"\uF06D", " ");//ミクロン記号μ
+				string pattern = CreateSearchPattern(normalizedText);
+				// 正規表現を使用して検索
+				Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
+				if (match.Success)
+				{
+					// 見つかったテキストに黄色の背景色をつける
+					int start = match.Index - pos;
+					Range range = doc.Range(start, start + match.Length);
+					int offset = 0;
+					for (int i = 0; i < 10; i++)
+					{
+						offset = this.CompareResult(normalizedText, range);
+						if (0 == offset) break;
+						start -= offset;
+						range = doc.Range(start, start + match.Length);
+						//string message = string.Format("Wrong position2: i:{0} index:{1} offset:{2} pos:{3}\nline:\n{4}\nrange.Text:\n{5}\n", i, match.Index, offset, pos, normalizedText, range.Text);
+						//this.WriteMatchLine(message, docFile);
+						pos += offset;
+					}
+					if (0 != offset)
+					{
+						string message = string.Format("Wrong position: index:{0} length:{1}\nline:\n{2}\nrange.Text:\n{3}\n", match.Index, match.Length, normalizedText, range.Text);
+						this.WriteMatchLine(message, docFile);
+					}
+					this.DoChangeColor(range, rate, index);
+				}
+				else
+				{
+					string message = string.Format("Not found: index:{0} rate:{1:0.00}\nline:\n{2}\npattern:\n{3}\n", index, rate, line, pattern);
+					this.WriteMatchLine(message, docFile);
+				}
 			}
 			catch (Exception e)
 			{
@@ -184,7 +217,6 @@ namespace Arx.DocSearch.Client
 			else if (0D < rate) color = Color.LightGreen;
 			range.Font.Shading.BackgroundPatternColor = (WdColor)ColorTranslator.ToOle(color);
 			range.Select();
-			if (index < 1000) this.mainForm.WriteLog(string.Format("DoChangeColor:{0:0.00}:{1}:{2}", rate, color, range.Text));
 		}
 
 		private void GetSrcParagraphs() {
@@ -243,7 +275,7 @@ namespace Arx.DocSearch.Client
 
 		}*/
 
-		private void ResearchMatchLine(string line, double rate, int index, Document doc, string docFile, string docText)
+		/*private void SearchMatchLine(string line, double rate, int index, Document doc, string docFile, string docText, ref int pos)
 		{
 			// 検索テキストを正規表現パターンに変換
 			// Replace smart quotes with regular quotes
@@ -255,12 +287,30 @@ namespace Arx.DocSearch.Client
 			if (match.Success)
 			{
 				// 見つかったテキストに黄色の背景色をつける
-				Range range = doc.Range(match.Index, match.Index + match.Length);
-				DoChangeColor(range, rate, index);
-			}else{
-				WriteMatchLine(line, pattern, rate, index, docFile);
+				int start = match.Index - pos;
+				Range range = doc.Range(start, start + match.Length);
+				int offset = 0;
+				for (int i = 0; i < 10; i++)
+				{
+					offset = this.CompareResult(normalizedText, range);
+					if (0 == offset) break;
+					start -= offset;
+					range = doc.Range(start, start + match.Length);
+					//string message = string.Format("Wrong position2: i:{0} index:{1} offset:{2} pos:{3}\nline:\n{4}\nrange.Text:\n{5}\n", i, match.Index, offset, pos, normalizedText, range.Text);
+					//this.WriteMatchLine(message, docFile);
+					pos += offset;
+				}
+				if (0 != offset) {
+					string message = string.Format("Wrong position: index:{0} length:{1}\nline:\n{2}\nrange.Text:\n{3}\n", match.Index, match.Length, normalizedText, range.Text);
+					this.WriteMatchLine(message, docFile);
+				}
+				this.DoChangeColor(range, rate, index);
 			}
-		}
+			else{
+				string message = string.Format("Not found: index:{0} rate:{1:0.00}\nline:\n{2}\npattern:\n{3}\n", index, rate, line, pattern);
+				this.WriteMatchLine(message, docFile);
+			}
+		}*/
 
 		private string CreateSearchPattern(string searchText)
 		{
@@ -284,10 +334,9 @@ namespace Arx.DocSearch.Client
 			return string.Join(@"\s*", processedWords);
 		}
 
-		private void WriteMatchLine(string line, string pattern, double rate, int index, string docFile)
+		private void WriteMatchLine(string message, string docFile)
 		{
 			string filename = Path.Combine(this.seletedPath, Path.GetFileName(docFile) + ".txt");
-			string message = string.Format("index:{0} rate:{1:0.00}\nline:\n{2}\npattern:\n{3}\n", index, rate, line, pattern);
 			rwl.AcquireWriterLock(Timeout.Infinite);
 			// ファイルオープン
 			try
@@ -326,19 +375,19 @@ namespace Arx.DocSearch.Client
 			find.Execute(Replace: WdReplace.wdReplaceAll);
 		}
 
-		private void ProcessDocumentContent(string filePath)
+		private void ReplaceSymbolChars(string filePath)
 		{
 			using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(filePath, true))
 			{
 				var body = wordDoc.MainDocumentPart.Document.Body;
 				if (body != null)
 				{
-					this.ReplaceSymbolChars(body);
+					this.ReplaceSymbolCharsByElement(body);
 				}
 			}
 		}
 
-		private void ReplaceSymbolChars(OpenXmlElement element)
+		private void ReplaceSymbolCharsByElement(OpenXmlElement element)
 		{
 			// すべての子要素に対して再帰的に処理を行う
 			foreach (var childElement in element.Elements().ToList())
@@ -354,9 +403,20 @@ namespace Arx.DocSearch.Client
 				}
 				else
 				{
-					ReplaceSymbolChars(childElement);
+					ReplaceSymbolCharsByElement(childElement);
 				}
 			}
+		}
+
+		private int CompareResult(string line, Range range)
+		{
+			string text = range.Text;
+			string head1 = line.Length < 10 ? line : line.Substring(0, 10);
+			string head2 = text.Length < 10 ? text : text.Substring(0, 10);
+			if (head1.Equals(head2)) return 0;
+			int pos = line.IndexOf(head2);
+			if (pos == -1) return 1;
+			else return pos;
 		}
 	}
 	#endregion
