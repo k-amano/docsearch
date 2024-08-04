@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.Util", "Arx.D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.ClientStarter", "Arx.DocSearch.ClientStarter\Arx.DocSearch.ClientStarter.csproj", "{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arx.DocSearch.SpecialChars", "Arx.DocSearch.SpecialChars\Arx.DocSearch.SpecialChars.csproj", "{9C5DC991-244E-4F35-8139-9040CADC708F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,18 @@ Global
 		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|x86.ActiveCfg = Release|Any CPU
 		{0F357CD1-0191-4EFB-A14D-60DCE90FB7FD}.Release|x86.Build.0 = Release|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Debug|x86.Build.0 = Debug|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Release|x86.ActiveCfg = Release|Any CPU
+		{9C5DC991-244E-4F35-8139-9040CADC708F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

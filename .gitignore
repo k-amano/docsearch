@@ -56,3 +56,4 @@ bin/
 *.vsidx
 *.vs/
 packages/
+Properties/
