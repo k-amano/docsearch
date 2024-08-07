@@ -15,6 +15,10 @@ using Arx.DocSearch.Util;
 using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
 using NPOI.HSSF.Util;
+using Microsoft.Office.Interop.Word;
+using Application = System.Windows.Forms.Application;
+using WordApplication = Microsoft.Office.Interop.Word.Application;
+using Task = System.Threading.Tasks.Task;
 using View = System.Windows.Forms.View;
 using BorderStyle = NPOI.SS.UserModel.BorderStyle;
 using static Arx.DocSearch.Client.NodeManager;
@@ -41,6 +45,7 @@ namespace Arx.DocSearch.Client
 			this.reservationList = new List<Reservation>();
 			this.timer1.Interval = 5000;
 			this.isProgressing = false;
+			this.word = null;
 			// Console表示
 			//AllocConsole();
 			// コンソールとstdoutの紐づけを行う。無くても初回は出力できるが、表示、非表示を繰り返すとエラーになる。
@@ -64,10 +69,11 @@ namespace Arx.DocSearch.Client
 		private bool isProgressing;
         private List<Process> agentPrograms;
 		private int srcIndex;
-        #endregion
+		private WordApplication word;
+		#endregion
 
-        #region Property
-        public string UserAppDataPath
+		#region Property
+		public string UserAppDataPath
 		{
 			get
 			{
@@ -223,10 +229,19 @@ namespace Arx.DocSearch.Client
 			this.countLabel.Text = string.Empty;
 			this.GetTotalCount();
 			this.timer1.Start();
+			try
+			{
+				this.word = new WordApplication();
+				this.word.Visible = false;
+			}
+			catch (Exception ex)
+			{
+				this.WriteLog(ex.Message);
+			}
 			//this.job = new SearchJob(this);
 			//Thread.Sleep(5000);
 			//this.StartNodeManager();
-			if (0 < this.srcIndex)
+				if (0 < this.srcIndex)
 			{
                 this.AddReservation();
                 this.SearchReservationList();
@@ -251,6 +266,12 @@ namespace Arx.DocSearch.Client
 				this.WriteLog(string.Format("Conifg File was saved.  Xlsdir={0}", this.config.Xlsdir));
 			}
 			//this.job.Dispose();
+			if (null != this.word)
+			{
+				((_Application)this.word).Quit();
+				Marshal.ReleaseComObject(this.word);  // オブジェクト参照を解放
+				this.word = null;
+			}
 			this.WriteErrorLog();
 		}
 
@@ -474,8 +495,18 @@ namespace Arx.DocSearch.Client
 			{
 				foreach (string srcFile in docFiles)
 				{
-					string dir = Path.Combine(Path.GetDirectoryName(srcFile), ".adsidx");
-					string textFile = Path.Combine(dir, Path.GetFileName(srcFile) + ".txt");
+					string extension = Path.GetExtension(srcFile);
+					string path;
+					if (extension.Equals(".doc", StringComparison.OrdinalIgnoreCase))
+					{
+						path = Path.ChangeExtension(srcFile, ".docx");
+					}
+					else
+					{
+						path = srcFile;
+					}
+					string dir = Path.Combine(Path.GetDirectoryName(path), ".adsidx");
+					string textFile = Path.Combine(dir, Path.GetFileName(path) + ".txt");
 					if (File.Exists(textFile)) continue;
 					//if (File.Exists(textFile)) File.Delete(textFile);
 					this.Invoke(
@@ -488,8 +519,14 @@ namespace Arx.DocSearch.Client
 					writer = File.CreateText(textFile);
 					writer.NewLine = "\n";
 					string fileText = "";
+					if (extension.Equals(".doc", StringComparison.OrdinalIgnoreCase))
+					{
+						WordDocumentConverter.ConvertDocToDocx(this.word, srcFile, path);
+					} else {
+						path = srcFile;
+					}
 					//int l = ExtractText(srcFile, false, ref fileText);
-					fileText = WordTextExtractor.ExtractText(srcFile);
+					fileText = WordTextExtractor.ExtractText(path);
 
 					string[] paragraphs = fileText.Split('\n');
 					int maxContiuousNumber = 0;

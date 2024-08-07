@@ -6,7 +6,7 @@ namespace Arx.DocSearch.Util
 {
 	public class WordDocumentConverter
 	{
-		public void ConvertDocToDocx(Application word, string inputPath, string outputPath)
+		public static void ConvertDocToDocx(Application word, string inputPath, string outputPath)
 		{
 			if (!File.Exists(inputPath))
 			{
