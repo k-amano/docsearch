@@ -488,7 +488,9 @@ namespace Arx.DocSearch.Client
 					writer = File.CreateText(textFile);
 					writer.NewLine = "\n";
 					string fileText = "";
-					int l = ExtractText(srcFile, false, ref fileText);
+					//int l = ExtractText(srcFile, false, ref fileText);
+					fileText = WordTextExtractor.ExtractText(srcFile);
+
 					string[] paragraphs = fileText.Split('\n');
 					int maxContiuousNumber = 0;
 					bool isContinuousNumber = false;
