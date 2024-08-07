@@ -13,6 +13,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using DocumentFormat.OpenXml;
 using System.Threading;
+using System.Text;
 
 
 namespace Arx.DocSearch.SpecialChars
@@ -33,6 +34,7 @@ namespace Arx.DocSearch.SpecialChars
 		{
 			this.folderBrowserDialog1.Description = "検索先のフォルダを指定してください。";
 			this.folderBrowserDialog2.Description = "検索結果を出力するフォルダを指定してください。";
+			this.label1.Text = "検索先と検索結果を出力するフォルダを指定して開始ボタンをクリックしてください。";
 			try
 			{
 				this.word = new Application();
@@ -75,9 +77,11 @@ namespace Arx.DocSearch.SpecialChars
 				string fileName = Path.GetFileName(srcFile);
 				// 拡張子を除いたファイル名を取得
 				string docFile = Path.Combine(srcPath, Path.GetFileNameWithoutExtension(fileName));
+				this.label1.Text = docFile + "を処理中。";
 				Debug.WriteLine(docFile);
 				this.EditWord(srcFile, docFile, targetPath);
 			}
+			this.label1.Text = "終了しました。";
 
 		}
 
@@ -117,6 +121,8 @@ namespace Arx.DocSearch.SpecialChars
 				doc.Fields.Unlink();
 				string docText = doc.Content.Text;
 				docText = Regex.Replace(docText, @"\uF06D", " ");//ミクロン記号μ
+				docText = Regex.Replace(docText, @"[\x00-\x1F]", " ");//非表示キャラクタ
+				docText = this.ConvertMathematicalString(docText);
 				string text = string.Empty;
 				List<string> lines = new List<string>();
 				using (StreamReader file = new StreamReader(srcFile))
@@ -127,11 +133,13 @@ namespace Arx.DocSearch.SpecialChars
 						lines.Add(line);
 					}
 				}
-				for (int i = 0;i < lines.Count; i++)
+				bool found = true;
+				for (int i = 0; i < lines.Count; i++)
 				{
-					string line=lines[i];
-					this.FindMatchLine(i, line, docFile, docText, targetDir);
+					string line = lines[i];
+					if (!this.FindMatchLine(i, line, docFile, docText, targetDir)) found = false;
 				}
+				if (!found) this.WriteMatchLine(docText, docFile, targetDir);
 			}
 			catch (Exception e)
 			{
@@ -144,6 +152,7 @@ namespace Arx.DocSearch.SpecialChars
 					((_Document)doc).Close();
 					Marshal.ReleaseComObject(doc);  // オブジェクト参照を解放
 					doc = null;
+					File.Delete(targetPath);
 				}
 			}
 		}
@@ -202,29 +211,35 @@ namespace Arx.DocSearch.SpecialChars
 			}
 		}
 
-		private void FindMatchLine(int index, string line, string docFile, string docText, string targetDir)
+		private bool FindMatchLine(int index, string line, string docFile, string docText, string targetDir)
 		{
+			bool found = true;
 			line = line.Trim();
-			if (0 == line.Length) return;
+			if (0 == line.Length) return found;
 			try
 			{
 				// 検索テキストを正規表現パターンに変換
 				// Replace smart quotes with regular quotes
-				string normalizedText = Regex.Replace(line, @"(\.|:|;)(?!\s)", "$1 "); //「.:;」の後に空白を入れる
+				string normalizedText = Regex.Replace(line, @"([.:;)])(?!\s)", "$1 "); //「.:;)」の後に空白を入れる
+				normalizedText = Regex.Replace(normalizedText, @"(?<!\s)([.:;)])", " $1"); //「.:;)」の前に空白を入れる
 				normalizedText = Regex.Replace(normalizedText, @"\uF06D", " ");//ミクロン記号μ
+				normalizedText = Regex.Replace(normalizedText, @"eq\\o\([^,]+,¯\s\)", " ");//EQフィールド(数式)
+				normalizedText = Regex.Replace(normalizedText, @"apparatusincludes", @"apparatus includes");//F1-16A21C9U.docxでタブが抜ける対応
 				string pattern = CreateSearchPattern(normalizedText);
 				// 正規表現を使用して検索
 				Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
 				if (!match.Success)
 				{
-					string message = string.Format("Not found: index:{0} \nline:\n{1}\npattern:\n{2}\n", index + 1, line, pattern);
+					string message = string.Format("Not found: index:{0} \nline:\n{1}\npattern:\n{2}\n", index + 1, normalizedText, pattern);
 					this.WriteMatchLine(message, docFile, targetDir);
+					found = false;
 				}
 			}
 			catch (Exception e)
 			{
 				Debug.WriteLine("FindMatchLine:" + e.Message);
 			}
+			return found;
 		}
 
 		private string CreateSearchPattern(string searchText)
@@ -239,7 +254,7 @@ namespace Arx.DocSearch.SpecialChars
 				string escaped = Regex.Replace(word, @"[.^$*+?()[\]\\|{}]", @"\$&");
 
 				// Handle apostrophes specially
-				escaped = Regex.Replace(escaped, @"'", @"[’']");
+				escaped = Regex.Replace(escaped, @"'", @"[‘’']");
 				escaped = Regex.Replace(escaped, @"""", @"[“”®™–—""]");
 
 				return escaped;
@@ -257,7 +272,7 @@ namespace Arx.DocSearch.SpecialChars
 			try
 			{
 				using (FileStream fs = File.Open(filename, FileMode.Append))
-				using (StreamWriter writer = new StreamWriter(fs))
+				using (StreamWriter writer = new StreamWriter(fs, Encoding.UTF8))
 				{
 					writer.WriteLine(message);
 				}
@@ -268,5 +283,54 @@ namespace Arx.DocSearch.SpecialChars
 				rwl.ReleaseWriterLock();
 			}
 		}
+		private string ConvertMathematicalString(string input)
+		{
+			StringBuilder result = new StringBuilder();
+
+			for (int i = 0; i < input.Length; i++)
+			{
+				int codePoint = char.ConvertToUtf32(input, i);
+				if (char.IsSurrogatePair(input, i))
+				{
+					i++; // サロゲートペアなので2文字分進める
+				}
+
+				string convertedChar = ConvertCodePoint(codePoint);
+				result.Append(convertedChar);
+			}
+
+			return result.ToString();
+		}
+
+		private string ConvertCodePoint(int codePoint)
+		{
+			// 数学的イタリック小文字（𝑎 to 𝑧）を通常の小文字（a to z）に変換
+			if (codePoint >= 0x1D44E && codePoint <= 0x1D467)
+			{
+				return ((char)('a' + (codePoint - 0x1D44E))).ToString();
+			}
+			// 数学的イタリック大文字（𝐴 to 𝑍）を通常の大文字（A to Z）に変換
+			else if (codePoint >= 0x1D434 && codePoint <= 0x1D44D)
+			{
+				return ((char)('A' + (codePoint - 0x1D434))).ToString();
+			}
+			// 数学的ボールド小文字ギリシャ文字（𝛂 to 𝛚）を通常の小文字ギリシャ文字（α to ω）に変換
+			else if (codePoint >= 0x1D6C2 && codePoint <= 0x1D6DA)
+			{
+				return ((char)('α' + (codePoint - 0x1D6C2))).ToString();
+			}
+			// ギリシャ文字とその他の特殊文字はそのまま
+			else if ((codePoint >= 0x0391 && codePoint <= 0x03C9) || // ギリシャ文字範囲
+					 codePoint == 0x0394 || codePoint == 0x03B4 || codePoint == 0x03BB) // Δ, δ, λ
+			{
+				return char.ConvertFromUtf32(codePoint);
+			}
+			// その他の文字はそのまま
+			else
+			{
+				return char.ConvertFromUtf32(codePoint);
+			}
+		}
+
 	}
 }
