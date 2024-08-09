@@ -4,6 +4,8 @@ using System.Linq;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using DocumentFormat.OpenXml;
+using System.Text.RegularExpressions;
+using System;
 
 namespace Arx.DocSearch.Util
 {
@@ -65,57 +67,135 @@ namespace Arx.DocSearch.Util
 		{0x77, "ω"}
 	};
 
-		public static string ExtractText(string filePath)
+		private static bool EnableDebugOutput = false;
+
+		private static StringBuilder extractedText = new StringBuilder();
+
+		public static string ExtractText(string filePath, bool enableDebug = false)
 		{
-			StringBuilder text = new StringBuilder();
+			EnableDebugOutput = enableDebug;
+			extractedText.Clear();
+
 			using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, false))
 			{
 				var body = doc.MainDocumentPart.Document.Body;
 				if (body != null)
 				{
-					ExtractTextAndEquations(body, text, 0);
+					ExtractTextRecursive(body, 0);
 				}
 			}
-			return text.ToString();
+
+			return CleanupText(extractedText.ToString());
 		}
 
-		static void ExtractTextAndEquations(OpenXmlElement element, StringBuilder text, int depth)
+		static void ExtractTextRecursive(OpenXmlElement element, int depth)
 		{
-			foreach (var child in element.ChildElements)
+			if (element is Paragraph paragraph)
 			{
-				if (child is Run run)
+				ProcessParagraph(paragraph, depth);
+			}
+			else if (element is Run run)
+			{
+				ProcessRun(run, depth);
+			}
+			else if (element is OpenXmlUnknownElement unknownElement)
+			{
+				ProcessUnknownElement(unknownElement, depth);
+			}
+			else
+			{
+				foreach (var child in element.Elements())
 				{
-					ProcessRun(run, text, depth + 1);
-				}
-				else if (child is Paragraph para)
-				{
-					ExtractTextAndEquations(para, text, depth + 1);
-					text.AppendLine();
-				}
-				else if (child.NamespaceUri == "http://schemas.openxmlformats.org/officeDocument/2006/math")
-				{
-					text.Append(ExtractFromMathElement(child, depth + 1));
-				}
-				else
-				{
-					ExtractTextAndEquations(child, text, depth + 1);
+					ExtractTextRecursive(child, depth + 1);
 				}
 			}
 		}
 
-		static void ProcessRun(Run run, StringBuilder text, int depth)
+		static void ProcessParagraph(Paragraph paragraph, int depth)
+		{
+			foreach (var child in paragraph.Elements())
+			{
+				ExtractTextRecursive(child, depth + 1);
+			}
+			extractedText.AppendLine();
+		}
+
+		static void ProcessRun(Run run, int depth)
 		{
 			bool isSymbolFont = IsSymbolFont(run);
+			bool hasShading = HasShading(run);
+
+			DebugOutput($"Processing Run: IsSymbolFont={isSymbolFont}, HasShading={hasShading}", depth);
+
 			foreach (var runChild in run.ChildElements)
 			{
 				if (runChild is Text textElement)
 				{
-					ProcessText(textElement.Text, isSymbolFont, text, depth + 1);
+					ProcessText(textElement.Text, isSymbolFont, hasShading, depth + 1);
 				}
 				else if (runChild.LocalName == "sym")
 				{
-					ProcessSymbol(runChild, text, depth + 1);
+					ProcessSymbol(runChild, depth + 1);
 				}
+				else if (runChild is OpenXmlUnknownElement unknownElement)
+				{
+					ProcessUnknownElement(unknownElement, depth + 1);
+				}
+				else
+				{
+					DebugOutput($"Unexpected element in Run: {runChild.GetType().Name}", depth + 1);
+				}
+			}
+		}
+
+		static void ProcessText(string textContent, bool isSymbolFont, bool hasShading, int depth)
+		{
+			DebugOutput($"Processing Text: Length={textContent.Length}, IsSymbolFont={isSymbolFont}, HasShading={hasShading}", depth);
+			DebugOutput($"Text content: {textContent}", depth);
+
+			if (hasShading)
+			{
+				DebugOutput($"Text with shading: {textContent}", depth);
+			}
+
+			extractedText.Append(textContent);
+		}
+
+		static void ProcessSymbol(OpenXmlElement symbolElement, int depth)
+		{
+			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
+			if (charAttribute != null)
+			{
+				string symbolChar = charAttribute.Value;
+				string converted = ConvertSymbolChar(symbolChar);
+				extractedText.Append(converted);
+			}
+		}
+
+		// IsSymbolFont, HasShading, ProcessSymbol, ConvertChar, ConvertSymbolChar メソッドは変更なし
+
+		static void ProcessUnknownElement(OpenXmlUnknownElement element, int depth)
+		{
+			DebugOutput($"Processing Unknown Element: {element.LocalName}", depth);
+			if (element.HasAttributes)
+			{
+				foreach (var attr in element.GetAttributes())
+				{
+					DebugOutput($"  Attribute: {attr.LocalName} = {attr.Value}", depth);
+				}
+			}
+
+			if (element.HasChildren)
+			{
+				foreach (var child in element.ChildElements)
+				{
+					ExtractTextRecursive(child, depth + 1);
+				}
+			}
+			else if (!string.IsNullOrWhiteSpace(element.InnerText))
+			{
+				DebugOutput($"  Inner Text: {element.InnerText}", depth);
+				extractedText.Append(element.InnerText);
 			}
 		}
 
@@ -131,44 +211,23 @@ namespace Arx.DocSearch.Util
 			return false;
 		}
 
-		static string GetRunProperties(Run run)
+		static bool HasShading(Run run)
 		{
 			var rPr = run.RunProperties;
 			if (rPr != null)
 			{
-				var props = new List<string>();
-				if (rPr.RunFonts != null)
+				if (rPr.Shading != null)
 				{
-					props.Add($"Ascii: {rPr.RunFonts.Ascii?.Value}");
-					props.Add($"HighAnsi: {rPr.RunFonts.HighAnsi?.Value}");
-					props.Add($"ComplexScript: {rPr.RunFonts.ComplexScript?.Value}");
+					DebugOutput($"Shading found: Fill={rPr.Shading.Fill?.Value}, Color={rPr.Shading.Color?.Value}", 0);
+					return true;
 				}
-				if (rPr.FontSize != null) props.Add($"FontSize: {rPr.FontSize.Val}");
-				if (rPr.Bold != null) props.Add("Bold");
-				if (rPr.Italic != null) props.Add("Italic");
-				return string.Join(", ", props);
+				if (rPr.Color != null)
+				{
+					DebugOutput($"Color found: {rPr.Color.Val}", 0);
+					return true;
+				}
 			}
-			return "No properties";
-		}
-
-		static void ProcessText(string textContent, bool isSymbolFont, StringBuilder text, int depth)
-		{
-			foreach (char c in textContent)
-			{
-				string converted = ConvertChar(c, isSymbolFont);
-				text.Append(converted);
-			}
-		}
-
-		static void ProcessSymbol(OpenXmlElement symbolElement, StringBuilder text, int depth)
-		{
-			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
-			if (charAttribute != null)
-			{
-				string symbolChar = charAttribute.Value;
-				string converted = ConvertSymbolChar(symbolChar);
-				text.Append(converted);
-			}
+			return false;
 		}
 
 		static string ConvertChar(char c, bool isSymbolFont)
@@ -196,7 +255,6 @@ namespace Arx.DocSearch.Util
 			return charValue;
 		}
 
-
 		static string ExtractFromMathElement(OpenXmlElement mathElement, int depth)
 		{
 			StringBuilder mathText = new StringBuilder();
@@ -215,7 +273,6 @@ namespace Arx.DocSearch.Util
 					string convertedText = ConvertMathText(innerText);
 					mathText.Append(convertedText);
 					break;
-				// ... (その他のケースは変更なし)
 				default:
 					foreach (var child in mathElement.ChildElements)
 					{
@@ -236,7 +293,7 @@ namespace Arx.DocSearch.Util
 
 				if (char.IsSurrogate(text[i]))
 				{
-					i++; // サロゲートペアの場合、次の文字をスキップ
+					i++;
 				}
 
 				if (GreekCharMap.TryGetValue(charCode, out string specialChar))
@@ -251,53 +308,25 @@ namespace Arx.DocSearch.Util
 			return converted.ToString();
 		}
 
-		static string GetUnicodeCharacterName(int codePoint)
+		static string CleanupText(string text)
 		{
-			// この関数は簡易的なものです。実際の Unicode 文字名データベースを使用するとよりよいでしょう。
-			if (GreekCharMap.ContainsKey(codePoint))
-			{
-				return $"GREEK CHARACTER ({GreekCharMap[codePoint]})";
-			}
-			switch (codePoint)
-			{
-				case 0x2206: return "INCREMENT";
-				case 0x2207: return "NABLA";
-				case 0x2200: return "FOR ALL";
-				case 0x2203: return "THERE EXISTS";
-				case 0x2205: return "EMPTY SET";
-				case 0x2208: return "ELEMENT OF";
-				case 0x2209: return "NOT AN ELEMENT OF";
-				case 0x220B: return "CONTAINS AS MEMBER";
-				case 0x220F: return "N-ARY PRODUCT";
-				case 0x2211: return "N-ARY SUMMATION";
-				case 0x221A: return "SQUARE ROOT";
-				case 0x221D: return "PROPORTIONAL TO";
-				case 0x221E: return "INFINITY";
-				case 0x2229: return "INTERSECTION";
-				case 0x222A: return "UNION";
-				case 0x2248: return "ALMOST EQUAL TO";
-				case 0x2260: return "NOT EQUAL TO";
-				case 0x2264: return "LESS-THAN OR EQUAL TO";
-				case 0x2265: return "GREATER-THAN OR EQUAL TO";
-				default: return "UNKNOWN";
-			}
+			// 余分な空白の削除（ただし、ハイフンの前後の空白は保持）
+			text = Regex.Replace(text, @"(?<!\s-)\s+(?!-\s)", " ");
+			// 行頭と行末の空白を削除
+			text = Regex.Replace(text, @"^\s+|\s+$", "", RegexOptions.Multiline);
+			// 連続する改行を1つにまとめる
+			text = Regex.Replace(text, @"\n+", "\n");
+			// 段落番号の後に余分な数字がある場合、それを削除（ただし先頭の0は保持）
+			text = Regex.Replace(text, @"(\[0*\d+\])(?:\d+)", "$1");
+			return text.Trim();
 		}
 
-		static string EscapeNonPrintable(string text)
+		static void DebugOutput(string message, int depth)
 		{
-			StringBuilder sb = new StringBuilder();
-			foreach (char c in text)
+			if (EnableDebugOutput)
 			{
-				if (char.IsControl(c) || char.IsWhiteSpace(c) || c > 127)
-				{
-					sb.Append($"\\u{(int)c:X4}");
-				}
-				else
-				{
-					sb.Append(c);
-				}
+				Console.WriteLine($"{new string(' ', depth * 2)}{message}");
 			}
-			return sb.ToString();
 		}
 	}
 
