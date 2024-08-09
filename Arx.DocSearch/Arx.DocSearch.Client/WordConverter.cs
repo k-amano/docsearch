@@ -8,14 +8,12 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Microsoft.Office.Interop.Word;
-using Application = Microsoft.Office.Interop.Word.Application;
-using Document = Microsoft.Office.Interop.Word.Document;
+//using Microsoft.Office.Interop.Word;
+//using Application = Microsoft.Office.Interop.Word.Application;
+//using Document = Microsoft.Office.Interop.Word.Document;
 using Color = System.Drawing.Color;
 using Arx.DocSearch.Util;
-//using NPOI.SS.Formula.Functions;
 using System.Threading;
-using NPOI.SS.Formula;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using DocumentFormat.OpenXml;
@@ -60,6 +58,7 @@ namespace Arx.DocSearch.Client
 			this.GetTargetParagraphs();
 			//this.DumpParagraphs(targetParagraphs, true);
 			//this.DumpMatchLines();
+			
 			Process[] wordProcesses = Process.GetProcessesByName("WINWORD");
 			if (0 < wordProcesses.Length)
 			{
@@ -88,7 +87,7 @@ namespace Arx.DocSearch.Client
 					}
 				} else return;
 			}
-			Application word = null;
+			/*Application word = null;
 			try
 			{
 				word = new Application();
@@ -108,60 +107,46 @@ namespace Arx.DocSearch.Client
 					Marshal.ReleaseComObject(word);  // オブジェクト参照を解放
 					word = null;
 				}
-			}
+			}*/
+			this.EditWord(srcFile, false);
+			this.EditWord(targetFile, true);
 
 		}
 
-		private void EditWord(Application word, string docFile, bool isTarget)
+		private void EditWord(string docFile, bool isTarget)
 		{
 			string targetPath = Path.Combine(this.seletedPath, Path.GetFileName(docFile));
 			File.Copy(docFile, targetPath, true);
-			// OpenXML を使用して文書を処理
-			this.ReplaceSymbolChars(targetPath);
-			Document doc = null;
-			object miss = System.Reflection.Missing.Value;
-			object path = targetPath;
-			object readOnly = false;
+			string docText = WordTextExtractor.ExtractText(targetPath);
 			try
 			{
-				doc = word.Documents.Open(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
-				// 特殊空白文字を置換
-				this.ReplaceSpecialChar(doc, "^s", " ", true);
-				this.ReplaceSpecialChar(doc, "^-", "", true);
-				doc.Fields.ToggleShowCodes();
-				doc.Fields.Unlink();
-				string docText = doc.Content.Text;
-				docText = Regex.Replace(docText, @"\uF06D", " ");//ミクロン記号μ
-				string text = string.Empty;
-				int pos = 0;
-				foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
+				using (WordprocessingDocument doc = WordprocessingDocument.Open(targetPath, true))
 				{
-					MatchLine m = ml.Value;
-					int index = isTarget ? m.TargetLine: ml.Key;
-					double rate =  m.Rate;
-					this.FindMatchLine(index, rate, isTarget, doc, docFile, docText, ref pos);
-					//if (index > 500) break;
-				}
-				doc.SaveAs(ref path, ref miss, ref readOnly, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss, ref miss);
+					Body body = doc.MainDocumentPart.Document.Body;
+					if (body != null)
+					{
+						string text = string.Empty;
+						foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
+						{
+							MatchLine m = ml.Value;
+							int index = isTarget ? m.TargetLine : ml.Key;
+							double rate = m.Rate;
+							this.FindMatchLine(index, rate, isTarget, body, docFile, docText);
 
+						}
+						doc.MainDocumentPart.Document.Save();
+					}
+
+				}
 			}
 			catch (Exception e)
 			{
 				Debug.WriteLine(e.StackTrace);
-                this.mainForm.WriteLog("WordConverter.EditWord:" + e.Message + "\n"+  e.StackTrace);
-            }
-			finally
-			{
-				if (null != doc)
-				{
-					((_Document)doc).Close();
-					Marshal.ReleaseComObject(doc);  // オブジェクト参照を解放
-					doc = null;
-				}
+				this.mainForm.WriteLog("WordConverter.EditWord:" + e.Message + "\n" + e.StackTrace);
 			}
 		}
 
-		private void FindMatchLine(int index, double rate, bool isTarget, Document doc, string docFile, string docText, ref int pos)
+		private void FindMatchLine(int index, double rate, bool isTarget, Body body, string docFile, string docText)
 		{
 			string line = isTarget ? this.lsTarget[index].Trim() : this.lsSrc[index].Trim();
 			if (0 == line.Length) return;
@@ -176,7 +161,8 @@ namespace Arx.DocSearch.Client
 				Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
 				if (match.Success)
 				{
-					// 見つかったテキストに黄色の背景色をつける
+					HighlightMatch(body, match, rate);
+					/*// 見つかったテキストに黄色の背景色をつける
 					int start = match.Index - pos;
 					Range range = doc.Range(start, start + match.Length);
 					int offset = 0;
@@ -195,7 +181,7 @@ namespace Arx.DocSearch.Client
 						string message = string.Format("Wrong position: index:{0} length:{1}\nline:\n{2}\nrange.Text:\n{3}\n", match.Index, match.Length, normalizedText, range.Text);
 						this.WriteMatchLine(message, docFile);
 					}
-					this.DoChangeColor(range, rate, index);
+					this.DoChangeColor(range, rate, index);*/
 				}
 				else
 				{
@@ -209,7 +195,7 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private void DoChangeColor(Range range, double rate,int index)
+		/*private void DoChangeColor(Range range, double rate,int index)
 		{
 			Color color = Color.White;
 			if (1D == rate) color = Color.LightPink;
@@ -217,7 +203,7 @@ namespace Arx.DocSearch.Client
 			else if (0D < rate) color = Color.LightGreen;
 			range.Font.Shading.BackgroundPatternColor = (WdColor)ColorTranslator.ToOle(color);
 			range.Select();
-		}
+		}*/
 
 		private void GetSrcParagraphs() {
 			this.srcParagraphs = new List<List<int>>();
@@ -354,7 +340,7 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private void ReplaceSpecialChar(Document doc, string text, string replacement, bool matchWildcards)
+		/*private void ReplaceSpecialChar(Document doc, string text, string replacement, bool matchWildcards)
 		{
 			// 特殊空白文字を置換
 			Find find = doc.Content.Find;
@@ -373,8 +359,8 @@ namespace Arx.DocSearch.Client
 			find.MatchFuzzy = false;
 			find.MatchWildcards = matchWildcards;  // ワイルドカード検索を有効化
 			find.Execute(Replace: WdReplace.wdReplaceAll);
-		}
-
+		}*/
+		/*
 		private void ReplaceSymbolChars(string filePath)
 		{
 			using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(filePath, true))
@@ -407,7 +393,8 @@ namespace Arx.DocSearch.Client
 				}
 			}
 		}
-
+		*/
+		/*
 		private int CompareResult(string line, Range range)
 		{
 			string text = range.Text;
@@ -417,6 +404,112 @@ namespace Arx.DocSearch.Client
 			int pos = line.IndexOf(head2);
 			if (pos == -1) return 1;
 			else return pos;
+		}
+
+		*/
+		private void HighlightMatch(Body body, Match match, double rate)
+		{
+			//Console.WriteLine("背景色設定処理を開始します。");
+			//bool backgroundColorApplied = false;
+			int remainingLength = match.Length;
+			int currentIndex = 0;
+
+			foreach (var paragraph in body.Descendants<Paragraph>())
+			{
+				if (remainingLength <= 0) break;
+
+				string paragraphText = paragraph.InnerText;
+				if (currentIndex + paragraphText.Length > match.Index)
+				{
+					Console.WriteLine($"段落のテキスト: {paragraphText}");
+					var runs = paragraph.Descendants<Run>().ToList();
+					Console.WriteLine($"  段落内のRun要素数: {runs.Count}");
+
+					int startInParagraph = Math.Max(0, match.Index - currentIndex);
+					int endInParagraph = Math.Min(paragraphText.Length, startInParagraph + remainingLength);
+
+					ApplyBackgroundColorToRuns(runs, startInParagraph, endInParagraph, rate);
+
+					remainingLength -= (endInParagraph - startInParagraph);
+					//backgroundColorApplied = true;
+				}
+
+				currentIndex += paragraphText.Length;
+			}
+
+			//Console.WriteLine($"背景色設定処理が完了しました。背景色が適用された: {backgroundColorApplied}");
+		}
+
+		private void ApplyBackgroundColorToRuns(List<Run> runs, int startIndex, int endIndex, double rate)
+		{
+			int currentIndex = 0;
+			foreach (var run in runs)
+			{
+				int runLength = run.InnerText.Length;
+				if (currentIndex + runLength > startIndex && currentIndex < endIndex)
+				{
+					int runStartIndex = Math.Max(0, startIndex - currentIndex);
+					int runEndIndex = Math.Min(runLength, endIndex - currentIndex);
+
+					if (runStartIndex > 0 || runEndIndex < runLength)
+					{
+						// Run を分割する必要がある場合
+						SplitAndApplyBackgroundColor(run, runStartIndex, runEndIndex, rate);
+					}
+					else
+					{
+						// Run全体に背景色を適用する場合
+						ApplyBackgroundColor(run, rate);
+					}
+
+					//Console.WriteLine($"    背景色を適用: {run.InnerText}");
+				}
+				currentIndex += runLength;
+				if (currentIndex >= endIndex) break;
+			}
+		}
+
+		private void SplitAndApplyBackgroundColor(Run run, int startIndex, int endIndex, double rate)
+		{
+			string text = run.InnerText;
+			RunProperties originalProperties = run.RunProperties?.Clone() as RunProperties;
+
+			run.RemoveAllChildren();
+
+			if (startIndex > 0)
+			{
+				run.AppendChild(new Text(text.Substring(0, startIndex)));
+			}
+
+			Run coloredRun = new Run(new Text(text.Substring(startIndex, endIndex - startIndex)));
+			if (originalProperties != null)
+			{
+				coloredRun.RunProperties = originalProperties.Clone() as RunProperties;
+			}
+			ApplyBackgroundColor(coloredRun, rate);
+			run.InsertAfter(coloredRun, run.LastChild);
+
+			if (endIndex < text.Length)
+			{
+				Run remainingRun = new Run(new Text(text.Substring(endIndex)));
+				if (originalProperties != null)
+				{
+					remainingRun.RunProperties = originalProperties.Clone() as RunProperties;
+				}
+				run.InsertAfter(remainingRun, coloredRun);
+			}
+		}
+
+		private void ApplyBackgroundColor(Run run, double rate)
+		{
+			Color color = Color.White;
+			if (1D == rate) color = Color.LightPink;
+			else if (0.9 <= rate) color = Color.LightCyan;
+			else if (0D < rate) color = Color.LightGreen;
+			string htmlColor = String.Format("{0:X2}{1:X2}{2:X2}", color.R, color.G, color.B);
+			RunProperties runProperties = run.RunProperties ?? new RunProperties();
+			runProperties.Shading = new Shading() { Fill = htmlColor, Color = "auto", Val = ShadingPatternValues.Clear };
+			run.RunProperties = runProperties;
 		}
 	}
 	#endregion

@@ -229,19 +229,10 @@ namespace Arx.DocSearch.Client
 			this.countLabel.Text = string.Empty;
 			this.GetTotalCount();
 			this.timer1.Start();
-			try
-			{
-				this.word = new WordApplication();
-				this.word.Visible = false;
-			}
-			catch (Exception ex)
-			{
-				this.WriteLog(ex.Message);
-			}
 			//this.job = new SearchJob(this);
 			//Thread.Sleep(5000);
 			//this.StartNodeManager();
-				if (0 < this.srcIndex)
+			if (0 < this.srcIndex)
 			{
                 this.AddReservation();
                 this.SearchReservationList();
@@ -266,12 +257,6 @@ namespace Arx.DocSearch.Client
 				this.WriteLog(string.Format("Conifg File was saved.  Xlsdir={0}", this.config.Xlsdir));
 			}
 			//this.job.Dispose();
-			if (null != this.word)
-			{
-				((_Application)this.word).Quit();
-				Marshal.ReleaseComObject(this.word);  // オブジェクト参照を解放
-				this.word = null;
-			}
 			this.WriteErrorLog();
 		}
 
@@ -490,9 +475,41 @@ namespace Arx.DocSearch.Client
 
 		private void MakeTextFile(List<string> docFiles)
 		{
+			Process[] wordProcesses = Process.GetProcessesByName("WINWORD");
+			if (0 < wordProcesses.Length)
+			{
+				//メッセージボックスを表示する
+				DialogResult result = MessageBox.Show("起動中の Word を終了してよろしいですか？",
+						"確認",
+						MessageBoxButtons.YesNoCancel,
+						MessageBoxIcon.Exclamation,
+						MessageBoxDefaultButton.Button2);
+
+				//何が選択されたか調べる
+				if (result == DialogResult.Yes)
+				{
+					//「はい」が選択された時
+					foreach (Process p in wordProcesses)
+					{
+						try
+						{
+							p.Kill();
+							p.WaitForExit(); // possibly with a timeout
+						}
+						catch (Exception e)
+						{
+							Debug.WriteLine(e.StackTrace);
+						}
+					}
+				}
+				else return;
+			}
+			this.word = null;
 			StreamWriter writer = null;
 			try
 			{
+				this.word = new WordApplication();
+				this.word.Visible = false;
 				foreach (string srcFile in docFiles)
 				{
 					string extension = Path.GetExtension(srcFile);
@@ -594,6 +611,12 @@ namespace Arx.DocSearch.Client
 				if (null != writer)
 				{
 					writer.Close();
+				}
+				if (null != this.word)
+				{
+					((_Application)this.word).Quit();
+					Marshal.ReleaseComObject(this.word);  // オブジェクト参照を解放
+					this.word = null;
 				}
 			}
 		}
