@@ -88,7 +88,7 @@ namespace Arx.DocSearch.Util
 			string ret = CleanupText(extractedText.ToString());
 			if (isSingleLine)
 			{
-				ret = Regex.Replace(ret, @"\r\n|\r|\n", "");
+				ret = Regex.Replace(ret, @"\r\n|\r|\n", " "); //改行は空白に置き換える
 			}
 			return ret;
 		}
