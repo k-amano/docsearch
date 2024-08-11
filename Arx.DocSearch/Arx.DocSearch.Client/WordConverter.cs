@@ -22,7 +22,7 @@ namespace Arx.DocSearch.Client
 {
 	public class WordConverter
 	{
-				#region コンストラクタ
+		#region コンストラクタ
 		/// <summary>
 		/// コンストラクタです。
 		/// </summary>
@@ -37,6 +37,7 @@ namespace Arx.DocSearch.Client
 			this.mainForm = mainForm;
 		}
 		#endregion
+
 		#region フィールド
 		private string srcFile;
 		private string targetFile;
@@ -56,9 +57,6 @@ namespace Arx.DocSearch.Client
 		{
 			this.GetSrcParagraphs();
 			this.GetTargetParagraphs();
-			//this.DumpParagraphs(targetParagraphs, true);
-			//this.DumpMatchLines();
-			
 			Process[] wordProcesses = Process.GetProcessesByName("WINWORD");
 			if (0 < wordProcesses.Length)
 			{
@@ -87,27 +85,6 @@ namespace Arx.DocSearch.Client
 					}
 				} else return;
 			}
-			/*Application word = null;
-			try
-			{
-				word = new Application();
-				word.Visible = false;
-				this.EditWord(word, srcFile, false);
-				this.EditWord(word, targetFile, true);
-			}
-			catch (Exception e)
-			{
-				Debug.WriteLine(e.StackTrace);
-			}
-			finally
-			{
-				if (null != word)
-				{
-					((_Application)word).Quit();
-					Marshal.ReleaseComObject(word);  // オブジェクト参照を解放
-					word = null;
-				}
-			}*/
 			this.EditWord(srcFile, false);
 			this.EditWord(targetFile, true);
 
@@ -118,7 +95,7 @@ namespace Arx.DocSearch.Client
 			string targetPath = Path.Combine(this.seletedPath, Path.GetFileName(docFile));
 			File.Copy(docFile, targetPath, true);
 			string docText = WordTextExtractor.ExtractText(targetPath);
-			this.WriteMatchLine(docText, docFile);
+			//this.WriteMatchLine(string.Format("EditWord: targetPath:{0} Length:{1} docText:{2}", targetPath, docText.Length, docText), docFile);
 			try
 			{
 				using (WordprocessingDocument doc = WordprocessingDocument.Open(targetPath, true))
@@ -128,7 +105,6 @@ namespace Arx.DocSearch.Client
 					{
 						var paragraphs = body.Descendants<Paragraph>().ToList();
 						CreateDocTextWithSpaces(paragraphs, out List<int> paragraphLengths);
-						//string text = string.Empty;
 						foreach (KeyValuePair<int, MatchLine> ml in this.matchLines)
 						{
 							MatchLine m = ml.Value;
@@ -160,31 +136,28 @@ namespace Arx.DocSearch.Client
 				string normalizedText = Regex.Replace(line, @"(\.|:|;)(?!\s)", "$1 "); //「.:;」の後に空白を入れる
 				normalizedText = Regex.Replace(normalizedText, @"\uF06D", " ");//ミクロン記号μ
 				string pattern = CreateSearchPattern(normalizedText);
-				string flexiblePattern = CreateFlexibleSearchPattern(pattern);
+				//string flexiblePattern = CreateFlexibleSearchPattern(pattern);
 				// 正規表現を使用して検索
-				Match match = Regex.Match(docText, flexiblePattern, RegexOptions.IgnoreCase);
+				Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
 				string message = "";
 				if (match.Success)
 				{
-					string highlightedText = HighlightMatch(paragraphs, match, docText, paragraphLengths);
+					string highlightedText = HighlightMatch(rate, paragraphs, match, docText, paragraphLengths);
 					if (highlightedText != match.Value)
 					{
-						Console.WriteLine("警告: 色付け箇所と検索テキストが異なります。");
-						Console.WriteLine($"検索テキスト: {match.Value}");
-						Console.WriteLine($"色付け箇所: {highlightedText}");
-						message = string.Format("警告: 色付け箇所と検索テキストが異なります。: index:{0} rate:{1:0.00}\n検索テキスト: {2}\n色付け箇所: {3}}", index, rate, match.Value, highlightedText);
+						message = string.Format("警告: 色付け箇所と検索テキストが異なります。: index:{0} rate:{1:0.00}\n検索テキスト: {2}\n色付け箇所: {3}", index, rate, match.Value, highlightedText);
 						this.WriteMatchLine(message, docFile);
 					}
 				}
 				else
 				{
-					message = string.Format("指定されたテキストが見つかりませんでした。: index:{0} rate:{1:0.00}\n検索テキスト:\n{2}\nパターン:\n{3}\n", index, rate, line, flexiblePattern);
+					message = string.Format("指定されたテキストが見つかりませんでした。: index:{0} rate:{1:0.00}\n検索テキスト:\n{2}\nパターン:\n{3}", index, rate, line, pattern);
 					this.WriteMatchLine(message, docFile);
 				}
 			}
 			catch (Exception e)
 			{
-				this.mainForm.WriteLog("FindMatchLine:" + e.Message);
+				this.mainForm.WriteLog("FindMatchLine:" + e.Message + "\n" + e.StackTrace); 
 			}
 		}
 
@@ -288,7 +261,7 @@ namespace Arx.DocSearch.Client
 				.Select(Regex.Escape));
 		}
 
-		private string HighlightMatch(List<Paragraph> paragraphs, Match match, string docText, List<int> paragraphLengths)
+		private string HighlightMatch(double rate, List<Paragraph> paragraphs, Match match, string docText, List<int> paragraphLengths)
 		{
 			StringBuilder highlightedText = new StringBuilder();
 			int matchStart = match.Index;
@@ -316,7 +289,7 @@ namespace Arx.DocSearch.Client
 						startInParagraph = Math.Max(paragraphPrefix.Length, startInParagraph);
 					}
 
-					highlightedText.Append(ApplyBackgroundColorToRuns(runs, startInParagraph, endInParagraph));
+					highlightedText.Append(ApplyBackgroundColorToRuns(rate, runs, startInParagraph, endInParagraph));
 				}
 
 				currentIndex += paragraphLength;
@@ -332,7 +305,7 @@ namespace Arx.DocSearch.Client
 			return highlightedText.ToString();
 		}
 
-		private string ApplyBackgroundColorToRuns(List<Run> runs, int startIndex, int endIndex)
+		private string ApplyBackgroundColorToRuns(double rate, List<Run> runs, int startIndex, int endIndex)
 		{
 			StringBuilder highlightedText = new StringBuilder();
 			int currentIndex = 0;
@@ -346,11 +319,11 @@ namespace Arx.DocSearch.Client
 
 					if (runStartIndex > 0 || runEndIndex < runLength)
 					{
-						SplitAndApplyBackgroundColor(run, runStartIndex, runEndIndex);
+						SplitAndApplyBackgroundColor(rate, run, runStartIndex, runEndIndex);
 					}
 					else
 					{
-						ApplyBackgroundColor(run);
+						ApplyBackgroundColor(rate, run);
 					}
 
 					highlightedText.Append(run.InnerText.Substring(runStartIndex, runEndIndex - runStartIndex));
@@ -361,7 +334,7 @@ namespace Arx.DocSearch.Client
 			return highlightedText.ToString();
 		}
 
-		private void SplitAndApplyBackgroundColor(Run run, int startIndex, int endIndex)
+		private void SplitAndApplyBackgroundColor(double rate, Run run, int startIndex, int endIndex)
 		{
 			string text = run.InnerText;
 			RunProperties originalProperties = run.RunProperties?.Clone() as RunProperties;
@@ -378,7 +351,7 @@ namespace Arx.DocSearch.Client
 			{
 				coloredRun.RunProperties = originalProperties.Clone() as RunProperties;
 			}
-			ApplyBackgroundColor(coloredRun);
+			ApplyBackgroundColor(rate, coloredRun);
 			run.InsertAfter(coloredRun, run.LastChild);
 
 			if (endIndex < text.Length)
@@ -392,10 +365,14 @@ namespace Arx.DocSearch.Client
 			}
 		}
 
-		private void ApplyBackgroundColor(Run run)
+		private void ApplyBackgroundColor(double rate, Run run)
 		{
+			Color color = Color.White;
+			if (1D == rate) color = Color.LightPink;
+			else if (0.9 <= rate) color = Color.LightCyan;
+			else if (0D < rate) color = Color.LightGreen;	
 			RunProperties runProperties = run.RunProperties ?? new RunProperties();
-			runProperties.Shading = new Shading() { Fill = "FFFF00", Color = "auto", Val = ShadingPatternValues.Clear };
+			runProperties.Shading = new Shading() { Fill = $"{color.R:X2}{color.G:X2}{color.B:X2}", Color = "auto", Val = ShadingPatternValues.Clear };
 			run.RunProperties = runProperties;
 		}
 	}

@@ -71,7 +71,7 @@ namespace Arx.DocSearch.Util
 
 		private static StringBuilder extractedText = new StringBuilder();
 
-		public static string ExtractText(string filePath, bool enableDebug = false)
+		public static string ExtractText(string filePath, bool isSingleLine = true, bool enableDebug = false)
 		{
 			EnableDebugOutput = enableDebug;
 			extractedText.Clear();
@@ -85,7 +85,12 @@ namespace Arx.DocSearch.Util
 				}
 			}
 
-			return CleanupText(extractedText.ToString());
+			string ret = CleanupText(extractedText.ToString());
+			if (isSingleLine)
+			{
+				ret = Regex.Replace(ret, @"\r\n|\r|\n", "");
+			}
+			return ret;
 		}
 
 		static void ExtractTextRecursive(OpenXmlElement element, int depth)
@@ -311,7 +316,7 @@ namespace Arx.DocSearch.Util
 		static string CleanupText(string text)
 		{
 			// 余分な空白の削除（ただし、ハイフンの前後の空白は保持）
-			text = Regex.Replace(text, @"(?<!\s-)\s+(?!-\s)", " ");
+			text = Regex.Replace(text, @"(?<!\s-)[^\S\n\r]+(?!-\s)", " ");
 			// 行頭と行末の空白を削除
 			text = Regex.Replace(text, @"^\s+|\s+$", "", RegexOptions.Multiline);
 			// 連続する改行を1つにまとめる
