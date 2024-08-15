@@ -45,7 +45,7 @@ namespace Arx.DocSearch.Util
 							if (match.Success)
 							{
 								string highlightedText = HighlightMatch(rates[i], paragraphs, match, docText, paragraphLengths, sb, isDebug);
-								if (highlightedText != match.Value)
+								if (!this.CompareStringsIgnoringWhitespace(highlightedText, match.Value))
 								{
 									sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
 									sb.AppendLine($"検索テキスト: {match.Value}");
@@ -82,7 +82,7 @@ namespace Arx.DocSearch.Util
 			paragraphLengths = new List<int>();
 			foreach (var paragraph in paragraphs)
 			{
-				string paragraphText = paragraph.InnerText;
+				string paragraphText = paragraph.InnerText.Trim();
 				if (!string.IsNullOrWhiteSpace(paragraphText))
 				{
 					sb.Append(paragraphText);
@@ -133,9 +133,6 @@ namespace Arx.DocSearch.Util
 				int paragraphLength = paragraphLengths[paragraphIndex];
 				int paragraphStart = currentIndex;
 				int paragraphEnd = paragraphStart + paragraphLength;
-				if (isDebug) {
-					sb.AppendLine($"paragraphText: {paragraphText}\nparagraphLength: {paragraphLength} paragraphStart: {paragraphStart} paragraphEnd: {paragraphEnd}");
-				}
 
 				if (paragraphStart <= matchEnd && paragraphEnd > matchStart)
 				{
@@ -144,11 +141,25 @@ namespace Arx.DocSearch.Util
 					int endInParagraph = Math.Min(paragraphLength, matchEnd - paragraphStart);
 					if (isDebug)
 					{
+						string text = docText.Substring(paragraphStart, paragraphEnd - paragraphStart);
+						sb.AppendLine($"partFromDocText:#{text}#");
+						sb.AppendLine($"currentIndex: {currentIndex}\nparagraphText:#{paragraphText}#\nparagraphLength: {paragraphLength} paragraphStart: {paragraphStart} paragraphEnd: {paragraphEnd}");
 						sb.AppendLine($"matchStart: {matchStart} matchEnd: {matchEnd}  match.Length: {match.Length} startInParagraph: {startInParagraph} endInParagraph: {endInParagraph}");
 					}
-					//string MatchedText = paragraphText.Substring(startInParagraph, match.Length);
-					ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
 					string matchedText = paragraph.InnerText.Substring(startInParagraph, endInParagraph - startInParagraph);
+					if (!this.CompareStringsIgnoringWhitespace(matchedText, match.Value))
+					{
+						string head = match.Value.Substring(0, Math.Min(10, match.Value.Length));
+						int pos = paragraphText.IndexOf(head);
+						if (0 <= pos && startInParagraph != pos)
+						{
+							startInParagraph = pos;
+							endInParagraph = pos + match.Value.Length;
+							if (isDebug) sb.AppendLine($"pos:{pos}\nmatch.Value:#{match.Value}#\nmatchedText:#{matchedText}#\nstartInParagraph:{startInParagraph}\nendInParagraph:{endInParagraph}\nparagraph.InnerText:#{paragraph.InnerText}#");
+							matchedText = paragraph.InnerText.Substring(startInParagraph, Math.Min(endInParagraph - startInParagraph, paragraph.InnerText.Length - startInParagraph));
+						}
+					}
+					ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
 					highlightedText.Append(matchedText);
 				}
 				currentIndex += paragraphLength;
@@ -249,6 +260,17 @@ namespace Arx.DocSearch.Util
 			else if (0.9 <= rate) return Color.Cyan;
 			else if (0D < rate) return Color.LightGreen;
 			return Color.White;
+		}
+
+		private bool CompareStringsIgnoringWhitespace(string str1, string str2)
+		{
+			// 正規表現を使用して全ての種類の空白を削除
+			string pattern = @"\s+";
+			string str1WithoutWhitespace = Regex.Replace(str1, pattern, "");
+			string str2WithoutWhitespace = Regex.Replace(str2, pattern, "");
+
+			// 空白を除去した文字列を比較
+			return str1WithoutWhitespace.Equals(str2WithoutWhitespace);
 		}
 	}
 }

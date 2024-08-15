@@ -111,7 +111,7 @@ namespace Arx.DocSearch.Client
 				rates.Add(rate);
 			}
 			WordTextHighLighter highLighter = new WordTextHighLighter();
-			string message = highLighter.HighlightTextInWord(targetPath, indexes.ToArray(), rates.ToArray(), searchPatterns.ToArray(), true);
+			string message = highLighter.HighlightTextInWord(targetPath, indexes.ToArray(), rates.ToArray(), searchPatterns.ToArray());
 			if (!string.IsNullOrEmpty(message)) this.WriteMatchLine(message, docFile);
 		}
 
