@@ -543,7 +543,8 @@ namespace Arx.DocSearch.Client
 						path = srcFile;
 					}
 					//int l = ExtractText(srcFile, false, ref fileText);
-					fileText = WordTextExtractor.ExtractText(path, false);
+					WordTextExtractor wte = new WordTextExtractor(path, false);
+					fileText = wte.Text;
 
 					string[] paragraphs = fileText.Split('\n');
 					int maxContiuousNumber = 0;

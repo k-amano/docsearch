@@ -96,7 +96,8 @@ namespace Arx.DocSearch.Client
 			File.Copy(docFile, targetPath, true);
 			string filename = Path.Combine(this.seletedPath, Path.GetFileName(docFile) + ".txt");
 			File.Delete(filename);
-			string docText = WordTextExtractor.ExtractText(targetPath);
+			WordTextExtractor wte = new WordTextExtractor(targetPath);
+			string docText = wte.Text;
 			List<int> indexes = new List<int>();
 			List<double> rates = new List<double>();
 			List<string> searchPatterns = new List<string>();

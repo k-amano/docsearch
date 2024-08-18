@@ -81,7 +81,8 @@ namespace Arx.DocSearch.SpecialChars
 			File.Copy(docFile, targetPath, true);
 			try
 			{
-				string docText = WordTextExtractor.ExtractText(docFile);
+				WordTextExtractor wte = new WordTextExtractor(docFile);
+				string docText = wte.Text;
 				string text = string.Empty;
 				List<string> lines = new List<string>();
 				using (StreamReader file = new StreamReader(srcFile))

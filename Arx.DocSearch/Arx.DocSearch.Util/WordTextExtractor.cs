@@ -11,6 +11,15 @@ namespace Arx.DocSearch.Util
 {
 	public class WordTextExtractor
 	{
+		public WordTextExtractor(string filePath, bool isSingleLine = true, bool reducesBlankSpaces = true, Action<string> debugLogger = null)
+		{
+			IsSingleLine = isSingleLine;
+			ReducesBlankSpaces = reducesBlankSpaces;
+			DebugLogger = debugLogger ?? (_ => { }); // デフォルトは何もしない
+
+			ExtractText(filePath);
+		}
+
 		static readonly Dictionary<int, string> GreekCharMap = new Dictionary<int, string>
 	{
         // 大文字ギリシャ文字
@@ -49,7 +58,6 @@ namespace Arx.DocSearch.Util
         { 0x2264, "≤" }, // LESS-THAN OR EQUAL TO
         { 0x2265, "≥" }, // GREATER-THAN OR EQUAL TO
     };
-
 		static readonly Dictionary<byte, string> SymbolToUnicode = new Dictionary<byte, string>
 	{
 		{0x41, "Α"}, {0x42, "Β"}, {0x47, "Γ"}, {0x44, "Δ"},
@@ -66,66 +74,169 @@ namespace Arx.DocSearch.Util
 		{0x75, "υ"}, {0x6A, "φ"}, {0x63, "χ"}, {0x79, "ψ"},
 		{0x77, "ω"}
 	};
-
-		private static bool EnableDebugOutput = false;
+		static readonly Dictionary<int, string> SymbolUnicodeMap = new Dictionary<int, string>
+	{
+		{ 0xF020, "\u0020" }, // SPACE
+        { 0xF021, "\u0021" }, // EXCLAMATION MARK
+        { 0xF022, "\u2200" }, // FOR ALL
+        { 0xF023, "\u0023" }, // NUMBER SIGN
+        { 0xF024, "\u2203" }, // THERE EXISTS
+        { 0xF025, "\u0025" }, // PERCENT SIGN
+        { 0xF026, "\u0026" }, // AMPERSAND
+        { 0xF027, "\u220B" }, // CONTAINS AS MEMBER
+        { 0xF028, "\u0028" }, // LEFT PARENTHESIS
+        { 0xF029, "\u0029" }, // RIGHT PARENTHESIS
+        { 0xF02A, "\u2217" }, // ASTERISK OPERATOR
+        { 0xF02B, "\u002B" }, // PLUS SIGN
+        { 0xF02C, "\u002C" }, // COMMA
+        { 0xF02D, "\u2212" }, // MINUS SIGN
+        { 0xF02E, "\u002E" }, // FULL STOP
+        { 0xF02F, "\u002F" }, // SOLIDUS
+        // 数字 (0-9)
+        { 0xF030, "\u0030" }, { 0xF031, "\u0031" }, { 0xF032, "\u0032" },
+		{ 0xF033, "\u0033" }, { 0xF034, "\u0034" }, { 0xF035, "\u0035" },
+		{ 0xF036, "\u0036" }, { 0xF037, "\u0037" }, { 0xF038, "\u0038" },
+		{ 0xF039, "\u0039" },
+        // その他の記号
+        { 0xF03A, "\u003A" }, // COLON
+        { 0xF03B, "\u003B" }, // SEMICOLON
+        { 0xF03C, "\u003C" }, // LESS-THAN SIGN
+        { 0xF03D, "\u003D" }, // EQUALS SIGN
+        { 0xF03E, "\u003E" }, // GREATER-THAN SIGN
+        { 0xF03F, "\u003F" }, // QUESTION MARK
+        { 0xF040, "\u2245" }, // APPROXIMATELY EQUAL TO
+        // ギリシャ文字 (大文字)
+        { 0xF041, "\u0391" }, { 0xF042, "\u0392" }, { 0xF043, "\u03A7" },
+		{ 0xF044, "\u0394" }, { 0xF045, "\u0395" }, { 0xF046, "\u03A6" },
+		{ 0xF047, "\u0393" }, { 0xF048, "\u0397" }, { 0xF049, "\u0399" },
+		{ 0xF04A, "\u03D1" }, { 0xF04B, "\u039A" }, { 0xF04C, "\u039B" },
+		{ 0xF04D, "\u039C" }, { 0xF04E, "\u039D" }, { 0xF04F, "\u039F" },
+		{ 0xF050, "\u03A0" }, { 0xF051, "\u0398" }, { 0xF052, "\u03A1" },
+		{ 0xF053, "\u03A3" }, { 0xF054, "\u03A4" }, { 0xF055, "\u03A5" },
+		{ 0xF056, "\u03C2" }, { 0xF057, "\u03A9" }, { 0xF058, "\u039E" },
+		{ 0xF059, "\u03A8" }, { 0xF05A, "\u0396" },
+        // その他の記号
+        { 0xF05B, "\u005B" }, // LEFT SQUARE BRACKET
+        { 0xF05C, "\u2234" }, // THEREFORE
+        { 0xF05D, "\u005D" }, // RIGHT SQUARE BRACKET
+        { 0xF05E, "\u22A5" }, // UP TACK
+        { 0xF05F, "\u005F" }, // LOW LINE
+        { 0xF060, "\uF8E5" }, // RADICAL EXTENDER
+        // ギリシャ文字 (小文字)
+        { 0xF061, "\u03B1" }, { 0xF062, "\u03B2" }, { 0xF063, "\u03C7" },
+		{ 0xF064, "\u03B4" }, { 0xF065, "\u03B5" }, { 0xF066, "\u03C6" },
+		{ 0xF067, "\u03B3" }, { 0xF068, "\u03B7" }, { 0xF069, "\u03B9" },
+		{ 0xF06A, "\u03D5" }, { 0xF06B, "\u03BA" }, { 0xF06C, "\u03BB" },
+		{ 0xF06D, "\u03BC" }, { 0xF06E, "\u03BD" }, { 0xF06F, "\u03BF" },
+		{ 0xF070, "\u03C0" }, { 0xF071, "\u03B8" }, { 0xF072, "\u03C1" },
+		{ 0xF073, "\u03C3" }, { 0xF074, "\u03C4" }, { 0xF075, "\u03C5" },
+		{ 0xF076, "\u03D6" }, { 0xF077, "\u03C9" }, { 0xF078, "\u03BE" },
+		{ 0xF079, "\u03C8" }, { 0xF07A, "\u03B6" },
+        // その他の記号
+        { 0xF07B, "\u007B" }, // LEFT CURLY BRACKET
+        { 0xF07C, "\u007C" }, // VERTICAL LINE
+        { 0xF07D, "\u007D" }, // RIGHT CURLY BRACKET
+        { 0xF07E, "\u223C" }, // TILDE OPERATOR
+    };
+		private Action<string> DebugLogger { get; set; }
 
 		private static StringBuilder extractedText = new StringBuilder();
+		private bool EnableDebugOutput { get; set; }
+		public bool IsSingleLine { get; set; }
+		public bool ReducesBlankSpaces { get; set; }
 
-		public static string ExtractText(string filePath, bool isSingleLine = true, bool enableDebug = false)
+		public List<string> ParagraphTexts { get; private set; }
+
+		public string Text
 		{
-			EnableDebugOutput = enableDebug;
-			extractedText.Clear();
+			get { return CombineText(ParagraphTexts); }
+		}
+
+		private void ExtractText(string filePath)
+		{
+			ParagraphTexts = new List<string>();
 
 			using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, false))
 			{
 				var body = doc.MainDocumentPart.Document.Body;
 				if (body != null)
 				{
-					ExtractTextRecursive(body, 0);
+					ExtractBodyElements(body.ChildElements);
 				}
 			}
-
-			string ret = CleanupText(extractedText.ToString());
-			if (isSingleLine)
-			{
-				ret = Regex.Replace(ret, @"\r\n|\r|\n", " "); //改行は空白に置き換える
-			}
-			return ret;
 		}
 
-		static void ExtractTextRecursive(OpenXmlElement element, int depth)
+		private void ExtractBodyElements(IEnumerable<OpenXmlElement> elements)
 		{
-			if (element is Paragraph paragraph)
+			foreach (var element in elements)
 			{
-				ProcessParagraph(paragraph, depth);
+				if (element is Paragraph paragraph)
+				{
+					string paragraphText = ExtractParagraphText(paragraph);
+					ParagraphTexts.Add(paragraphText);
+				}
+				else if (element is Table table)
+				{
+					ExtractTableElements(table.ChildElements);
+				}
+				else
+				{
+					// その他の要素も空のパラグラフとして追加
+					ParagraphTexts.Add(string.Empty);
+				}
 			}
-			else if (element is Run run)
+		}
+
+		private void ExtractTableElements(IEnumerable<OpenXmlElement> elements)
+		{
+			foreach (var element in elements)
 			{
-				ProcessRun(run, depth);
+				if (element is TableRow row)
+				{
+					foreach (var cell in row.Elements<TableCell>())
+					{
+						foreach (var cellChild in cell.ChildElements)
+						{
+							if (cellChild is Paragraph paragraph)
+							{
+								string cellText = ExtractParagraphText(paragraph);
+								ParagraphTexts.Add(cellText);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		private string ExtractParagraphText(Paragraph paragraph)
+		{
+			StringBuilder extractedText = new StringBuilder();
+			ExtractTextRecursive(paragraph, 0, extractedText);
+			return extractedText.ToString();
+		}
+
+		private void ExtractTextRecursive(OpenXmlElement element, int depth, StringBuilder extractedText)
+		{
+			if (element is Run run)
+			{
+				ProcessRun(run, depth, extractedText);
 			}
 			else if (element is OpenXmlUnknownElement unknownElement)
 			{
-				ProcessUnknownElement(unknownElement, depth);
+				ProcessUnknownElement(unknownElement, depth, extractedText);
 			}
 			else
 			{
 				foreach (var child in element.Elements())
 				{
-					ExtractTextRecursive(child, depth + 1);
+					ExtractTextRecursive(child, depth + 1, extractedText);
 				}
 			}
 		}
 
-		static void ProcessParagraph(Paragraph paragraph, int depth)
-		{
-			foreach (var child in paragraph.Elements())
-			{
-				ExtractTextRecursive(child, depth + 1);
-			}
-			extractedText.AppendLine();
-		}
 
-		static void ProcessRun(Run run, int depth)
+
+		private void ProcessRun(Run run, int depth, StringBuilder extractedText)
 		{
 			bool isSymbolFont = IsSymbolFont(run);
 			bool hasShading = HasShading(run);
@@ -136,15 +247,15 @@ namespace Arx.DocSearch.Util
 			{
 				if (runChild is Text textElement)
 				{
-					ProcessText(textElement.Text, isSymbolFont, hasShading, depth + 1);
+					ProcessText(textElement.Text, isSymbolFont, hasShading, depth + 1, extractedText);
 				}
 				else if (runChild.LocalName == "sym")
 				{
-					ProcessSymbol(runChild, depth + 1);
+					ProcessSymbol(runChild, depth + 1, extractedText);
 				}
 				else if (runChild is OpenXmlUnknownElement unknownElement)
 				{
-					ProcessUnknownElement(unknownElement, depth + 1);
+					ProcessUnknownElement(unknownElement, depth + 1, extractedText);
 				}
 				else
 				{
@@ -153,20 +264,17 @@ namespace Arx.DocSearch.Util
 			}
 		}
 
-		static void ProcessText(string textContent, bool isSymbolFont, bool hasShading, int depth)
+		private void ProcessText(string textContent, bool isSymbolFont, bool hasShading, int depth, StringBuilder extractedText)
 		{
-			DebugOutput($"Processing Text: Length={textContent.Length}, IsSymbolFont={isSymbolFont}, HasShading={hasShading}", depth);
-			DebugOutput($"Text content: {textContent}", depth);
-
-			if (hasShading)
+			for (int i = 0; i < textContent.Length; i++)
 			{
-				DebugOutput($"Text with shading: {textContent}", depth);
+				char c = textContent[i];
+				string converted = ConvertChar(c, isSymbolFont);
+				extractedText.Append(converted);
 			}
-
-			extractedText.Append(textContent);
 		}
 
-		static void ProcessSymbol(OpenXmlElement symbolElement, int depth)
+		private void ProcessSymbol(OpenXmlElement symbolElement, int depth, StringBuilder extractedText)
 		{
 			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
 			if (charAttribute != null)
@@ -177,9 +285,43 @@ namespace Arx.DocSearch.Util
 			}
 		}
 
-		// IsSymbolFont, HasShading, ProcessSymbol, ConvertChar, ConvertSymbolChar メソッドは変更なし
 
-		static void ProcessUnknownElement(OpenXmlUnknownElement element, int depth)
+		private string ConvertChar(char c, bool isSymbolFont)
+		{
+			if (char.IsControl(c) || char.IsWhiteSpace(c))
+			{
+				return c.ToString();
+			}
+
+			if (isSymbolFont)
+			{
+				return ConvertSymbolChar(((byte)c).ToString("X2"));
+			}
+
+			if (GreekCharMap.TryGetValue(c, out string greekChar))
+			{
+				return greekChar;
+			}
+
+			return c.ToString();
+		}
+
+		private string ConvertSymbolChar(string charValue)
+		{
+			//DebugOutput($"ConvertSymbolChar input: {charValue}", 0);
+			if (int.TryParse(charValue, System.Globalization.NumberStyles.HexNumber, null, out int symbolCode))
+			{
+				if (SymbolUnicodeMap.TryGetValue(symbolCode, out string unicodeChar))
+				{
+					DebugOutput($"ConvertSymbolChar output (from SymbolUnicodeMap): {unicodeChar}", 0);
+					return unicodeChar;
+				}
+			}
+			//DebugOutput($"ConvertSymbolChar output (unchanged): {charValue}", 0);
+			return charValue;
+		}
+
+		private void ProcessUnknownElement(OpenXmlUnknownElement element, int depth, StringBuilder extractedText)
 		{
 			DebugOutput($"Processing Unknown Element: {element.LocalName}", depth);
 			if (element.HasAttributes)
@@ -194,7 +336,7 @@ namespace Arx.DocSearch.Util
 			{
 				foreach (var child in element.ChildElements)
 				{
-					ExtractTextRecursive(child, depth + 1);
+					ExtractTextRecursive(child, depth + 1, extractedText);
 				}
 			}
 			else if (!string.IsNullOrWhiteSpace(element.InnerText))
@@ -204,7 +346,7 @@ namespace Arx.DocSearch.Util
 			}
 		}
 
-		static bool IsSymbolFont(Run run)
+		private bool IsSymbolFont(Run run)
 		{
 			var rPr = run.RunProperties;
 			if (rPr != null && rPr.RunFonts != null)
@@ -216,7 +358,7 @@ namespace Arx.DocSearch.Util
 			return false;
 		}
 
-		static bool HasShading(Run run)
+		private bool HasShading(Run run)
 		{
 			var rPr = run.RunProperties;
 			if (rPr != null)
@@ -235,32 +377,7 @@ namespace Arx.DocSearch.Util
 			return false;
 		}
 
-		static string ConvertChar(char c, bool isSymbolFont)
-		{
-			if (isSymbolFont)
-			{
-				return ConvertSymbolChar(((byte)c).ToString("X2"));
-			}
-			else if (GreekCharMap.TryGetValue(c, out string greekChar))
-			{
-				return greekChar;
-			}
-			return c.ToString();
-		}
-
-		static string ConvertSymbolChar(string charValue)
-		{
-			if (byte.TryParse(charValue, System.Globalization.NumberStyles.HexNumber, null, out byte symbolByte))
-			{
-				if (SymbolToUnicode.TryGetValue(symbolByte, out string unicodeChar))
-				{
-					return unicodeChar;
-				}
-			}
-			return charValue;
-		}
-
-		static string ExtractFromMathElement(OpenXmlElement mathElement, int depth)
+		private string ExtractFromMathElement(OpenXmlElement mathElement, int depth)
 		{
 			StringBuilder mathText = new StringBuilder();
 
@@ -289,7 +406,7 @@ namespace Arx.DocSearch.Util
 			return mathText.ToString();
 		}
 
-		static string ConvertMathText(string text)
+		private string ConvertMathText(string text)
 		{
 			StringBuilder converted = new StringBuilder();
 			for (int i = 0; i < text.Length; i++)
@@ -313,7 +430,7 @@ namespace Arx.DocSearch.Util
 			return converted.ToString();
 		}
 
-		static string CleanupText(string text)
+		private string CleanupText(string text)
 		{
 			// 余分な空白の削除（ただし、ハイフンの前後の空白は保持）
 			text = Regex.Replace(text, @"(?<!\s-)[^\S\n\r]+(?!-\s)", " ");
@@ -322,17 +439,67 @@ namespace Arx.DocSearch.Util
 			// 連続する改行を1つにまとめる
 			text = Regex.Replace(text, @"\n+", "\n");
 			// 段落番号の後に余分な数字がある場合、それを削除（ただし先頭の0は保持）
-			text = Regex.Replace(text, @"(\[0*\d+\])(?:\d+)", "$1");
-			return text.Trim();
+			return text;
 		}
 
-		static void DebugOutput(string message, int depth)
+		private string CleanEmptyParagraph(string paragraphText)
 		{
-			if (EnableDebugOutput)
+			if (string.IsNullOrWhiteSpace(paragraphText))
 			{
-				Console.WriteLine($"{new string(' ', depth * 2)}{message}");
+				return string.Empty;
 			}
+
+			if (paragraphText.All(c => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.OtherNotAssigned))
+			{
+				return string.Empty;
+			}
+
+			return paragraphText;
 		}
+
+		private string CombineText(List<string> paragraphs)
+		{
+			StringBuilder combinedText = new StringBuilder();
+
+			foreach (var paragraph in paragraphs)
+			{
+				if (!string.IsNullOrEmpty(paragraph))
+				{
+					if (combinedText.Length > 0)
+					{
+						if (!IsSingleLine) combinedText.Append(Environment.NewLine);
+					}
+					combinedText.Append(paragraph);
+				}
+			}
+
+			string result = combinedText.ToString();
+
+			if (ReducesBlankSpaces)
+			{
+				result = CleanupText(result);
+			}
+
+			return result;
+		}
+
+		// 設定を変更するメソッド
+		public void UpdateSettings(bool isSingleLine, bool reducesBlankSpaces)
+		{
+			IsSingleLine = isSingleLine;
+			ReducesBlankSpaces = reducesBlankSpaces;
+		}
+
+		private void DebugOutput(string message, int depth)
+		{
+			DebugLogger($"{new string(' ', depth * 2)}{message}");
+		}
+
+		public void SetDebugLogger(Action<string> debugLogger)
+		{
+			DebugLogger = debugLogger ?? (_ => { });
+		}
+
 	}
 
 }

@@ -17,16 +17,9 @@ namespace Arx.DocSearch.Util
 	{
 		public string HighlightTextInWord(string filePath, int[] indexes, double[] rates, string[] searchPatterns, bool isDebug = false)
 		{
-			string docText = WordTextExtractor.ExtractText(filePath);
 			StringBuilder sb = new StringBuilder();
-			if (isDebug)
-			{
-				sb.AppendLine($"filePath: {filePath} Length: {docText.Length} docText: {docText}");
-				string indexesStr = string.Join(", ", indexes);
-				string searchPatternsStr = string.Join(", ", searchPatterns);
-				string ratesStr = string.Join(", ", rates);
-				sb.AppendLine($"indexes: [{indexesStr}]\nsearchPatterns: [{searchPatternsStr}]\nrates: [{ratesStr}]");
-			}
+			WordTextExtractor wte = new WordTextExtractor(filePath, true, false);
+			string docText = wte.Text;
 			try
 			{
 				using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, true))
@@ -35,33 +28,34 @@ namespace Arx.DocSearch.Util
 					if (body != null)
 					{
 						var paragraphs = body.Descendants<Paragraph>().ToList();
-						CreateDocTextWithSpaces(paragraphs, out List<int> paragraphLengths);
+						CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
 							string pattern = CreateSearchPattern(searchPatterns[i]);
-							Regex regexPattern = new Regex(pattern, RegexOptions.IgnoreCase);
-							Match match = regexPattern.Match(docText);
-
-							if (match.Success)
+							var result = MatchIgnoringWhitespace(pattern, docText, sb);
+							if (result.matched)
 							{
-								string highlightedText = HighlightMatch(rates[i], paragraphs, match, docText, paragraphLengths, sb, isDebug);
-								if (!this.CompareStringsIgnoringWhitespace(highlightedText, match.Value))
+								List<int[]> matcheParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
+								string highlightedText = HighlightMatch(rates[i], paragraphs, paragraphLengths, matcheParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
+								string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
+
+								if (!this.CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 								{
 									sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
-									sb.AppendLine($"検索テキスト: {match.Value}");
+									sb.AppendLine($"検索テキスト: {matchedText}");
 									sb.AppendLine($"色付け箇所: {highlightedText}");
 								}
 								else if (isDebug)
 								{
 									sb.AppendLine("色付け箇所と検索テキストが一致しました。");
-									sb.AppendLine($"検索テキスト: {match.Value}");
+									sb.AppendLine($"検索テキスト: {matchedText}");
 									sb.AppendLine($"色付け箇所: {highlightedText}");
 								}
 							}
 							else
 							{
 								sb.AppendLine("エラー: 指定されたテキストが見つかりませんでした。");
-								sb.AppendLine($"検索文: {searchPatterns[i]}\n{regexPattern}");
+								sb.AppendLine($"検索文: {searchPatterns[i]}\n{pattern}");
 							}
 						}
 					}
@@ -76,24 +70,20 @@ namespace Arx.DocSearch.Util
 			return sb.ToString();
 		}
 
-		private string CreateDocTextWithSpaces(List<Paragraph> paragraphs, out List<int> paragraphLengths)
+		private string CreateDocTextWithSpaces(List<string> paragraphTexts, out List<int> paragraphLengths)
 		{
 			StringBuilder sb = new StringBuilder();
 			paragraphLengths = new List<int>();
-			foreach (var paragraph in paragraphs)
+			foreach (string paragraphText in paragraphTexts)
 			{
-				string paragraphText = paragraph.InnerText.Trim();
 				if (!string.IsNullOrWhiteSpace(paragraphText))
 				{
 					sb.Append(paragraphText);
-					if (sb.Length > 0 && sb[sb.Length - 1] != ' ')
-					{
-						sb.Append(" ");
-					}
+					paragraphLengths.Add(paragraphText.Length);
 				}
-				paragraphLengths.Add(paragraphText.Length);
+				else paragraphLengths.Add(0);
 			}
-			return sb.ToString().TrimEnd();
+			return sb.ToString();
 		}
 
 		private string CreateSearchPattern(string searchText)
@@ -119,58 +109,70 @@ namespace Arx.DocSearch.Util
 			return string.Join(@"\s*", processedWords);
 		}
 
-		private string HighlightMatch(double rate, List<Paragraph> paragraphs, Match match, string docText, List<int> paragraphLengths, StringBuilder sb, bool isDebug)
+		private List<int[]> GetMatchedParagraphs(int beginIndex, int endIndex, List<int> paragraphLengths, string docText, StringBuilder sb)
+		{
+			int index = 0;
+			List<int[]> matcheParagraphs = new List<int[]>();
+			for (int i = 0; i < paragraphLengths.Count; i++)
+			{
+				int paragraphLength = paragraphLengths[i];
+				if (index <= beginIndex && beginIndex <= index + paragraphLength
+				|| beginIndex < index && index + paragraphLength < endIndex
+				|| index <= endIndex && endIndex <= index + paragraphLength)
+				{
+					int[] info = new int[2];
+					info[0] = i;
+					info[1] = index;
+					matcheParagraphs.Add(info);
+				}
+				index += paragraphLength;
+				if (endIndex < index) break;
+			}
+			return matcheParagraphs;
+		}
+
+		private string HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matcheParagraphs, int beginIndex, int endIndex, StringBuilder sb, bool isDebug)
 		{
 			StringBuilder highlightedText = new StringBuilder();
-			int matchStart = match.Index;
-			int matchEnd = match.Index + match.Length;
-			int currentIndex = 0;
-			int paragraphIndex = 0;
-
-			foreach (var paragraph in paragraphs)
+			foreach (int[] matcheParagraph in matcheParagraphs)
 			{
+				int index = matcheParagraph[0];
+				int pos = matcheParagraph[1];
+				Paragraph paragraph = paragraphs[index];
 				string paragraphText = paragraph.InnerText;
-				int paragraphLength = paragraphLengths[paragraphIndex];
-				int paragraphStart = currentIndex;
-				int paragraphEnd = paragraphStart + paragraphLength;
-
-				if (paragraphStart <= matchEnd && paragraphEnd > matchStart)
-				{
-					var runs = paragraph.Descendants<Run>().ToList();
-					int startInParagraph = Math.Max(0, matchStart - paragraphStart);
-					int endInParagraph = Math.Min(paragraphLength, matchEnd - paragraphStart);
-					if (isDebug)
-					{
-						string text = docText.Substring(paragraphStart, paragraphEnd - paragraphStart);
-						sb.AppendLine($"partFromDocText:#{text}#");
-						sb.AppendLine($"currentIndex: {currentIndex}\nparagraphText:#{paragraphText}#\nparagraphLength: {paragraphLength} paragraphStart: {paragraphStart} paragraphEnd: {paragraphEnd}");
-						sb.AppendLine($"matchStart: {matchStart} matchEnd: {matchEnd}  match.Length: {match.Length} startInParagraph: {startInParagraph} endInParagraph: {endInParagraph}");
-					}
-					string matchedText = paragraph.InnerText.Substring(startInParagraph, endInParagraph - startInParagraph);
-					if (!this.CompareStringsIgnoringWhitespace(matchedText, match.Value))
-					{
-						string head = match.Value.Substring(0, Math.Min(10, match.Value.Length));
-						int pos = paragraphText.IndexOf(head);
-						if (0 <= pos && startInParagraph != pos)
-						{
-							startInParagraph = pos;
-							endInParagraph = pos + match.Value.Length;
-							if (isDebug) sb.AppendLine($"pos:{pos}\nmatch.Value:#{match.Value}#\nmatchedText:#{matchedText}#\nstartInParagraph:{startInParagraph}\nendInParagraph:{endInParagraph}\nparagraph.InnerText:#{paragraph.InnerText}#");
-							matchedText = paragraph.InnerText.Substring(startInParagraph, Math.Min(endInParagraph - startInParagraph, paragraph.InnerText.Length - startInParagraph));
-						}
-					}
-					ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
-					highlightedText.Append(matchedText);
-				}
-				currentIndex += paragraphLength;
-				if (!string.IsNullOrWhiteSpace(paragraphText))
-				{
-					currentIndex += 1;
-				}
-				paragraphIndex++;
-				if (currentIndex > matchEnd) break;
+				int paragraphLength = paragraphLengths[index];
+				int startInParagraph = beginIndex - pos - 1;
+				int endInParagraph = endIndex - pos + 1;
+				string matchedText = SafeSubstring(paragraphText, startInParagraph, endInParagraph - startInParagraph);
+				ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
+				highlightedText.Append(matchedText);
 			}
 			return highlightedText.ToString();
+		}
+
+		public string SafeSubstring(string str, int startIndex, int length)
+		{
+			if (string.IsNullOrEmpty(str))
+				return string.Empty;
+
+			// startIndexを0以上、文字列の長さ未満に調整
+			startIndex = Math.Max(0, Math.Min(str.Length - 1, startIndex));
+
+			// lengthを0以上、残りの文字列の長さ以下に調整
+			length = Math.Max(0, Math.Min(str.Length - startIndex, length));
+
+			return str.Substring(startIndex, length);
+		}
+
+		public string SafeSubstring(string str, int startIndex)
+		{
+			if (string.IsNullOrEmpty(str))
+				return string.Empty;
+
+			// startIndexを0以上、文字列の長さ以下に調整
+			startIndex = Math.Max(0, Math.Min(str.Length, startIndex));
+
+			return str.Substring(startIndex);
 		}
 
 		private void ApplyBackgroundColor(double rate, Run run)
@@ -271,6 +273,43 @@ namespace Arx.DocSearch.Util
 
 			// 空白を除去した文字列を比較
 			return str1WithoutWhitespace.Equals(str2WithoutWhitespace);
+		}
+
+		public (bool matched, int beginIndex, int endIndex) MatchIgnoringWhitespace(string pattern, string text, StringBuilder sb)
+		{
+			try
+			{
+				Regex regex = new Regex(pattern, RegexOptions.Compiled | RegexOptions.Multiline);
+				Match match = regex.Match(text);
+
+				if (!match.Success)
+				{
+					return (false, -1, -1);
+				}
+
+				int beginIndex = match.Index;
+				int endIndex = match.Index + match.Length - 1;
+
+				// 先頭の空白をスキップ
+				while (beginIndex <= endIndex && char.IsWhiteSpace(text[beginIndex]))
+				{
+					beginIndex++;
+				}
+
+				// 末尾の空白をスキップ
+				while (endIndex >= beginIndex && char.IsWhiteSpace(text[endIndex]))
+				{
+					endIndex--;
+				}
+
+				return (true, beginIndex, endIndex);
+			}
+			catch (ArgumentException ex)
+			{
+				sb.AppendLine($"正規表現エラー: {ex.Message}");
+				sb.AppendLine($"スタックトレース: {ex.StackTrace}");
+				return (false, -1, -1);
+			}
 		}
 	}
 }
