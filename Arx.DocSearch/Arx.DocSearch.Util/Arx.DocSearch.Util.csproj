@@ -56,6 +56,7 @@
     <Compile Include="MatchDocument.cs" />
     <Compile Include="MatchLine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SpecialCharConverter.cs" />
     <Compile Include="WordDocumentConverter.cs" />
     <Compile Include="WordTextExtractor.cs" />
     <Compile Include="WordTextHighLighter.cs" />

@@ -19,7 +19,6 @@ namespace Arx.DocSearch.Util
 		{
 			StringBuilder sb = new StringBuilder();
 			WordTextExtractor wte = new WordTextExtractor(filePath, true, false);
-			string docText = wte.Text;
 			try
 			{
 				using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, true))
@@ -28,18 +27,18 @@ namespace Arx.DocSearch.Util
 					if (body != null)
 					{
 						var paragraphs = body.Descendants<Paragraph>().ToList();
-						CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
+						string docText = CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
 							string pattern = CreateSearchPattern(searchPatterns[i]);
 							var result = MatchIgnoringWhitespace(pattern, docText, sb);
 							if (result.matched)
 							{
-								List<int[]> matcheParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
-								string highlightedText = HighlightMatch(rates[i], paragraphs, paragraphLengths, matcheParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
+								List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
+								string highlightedText = HighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
 								string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
 
-								if (!this.CompareStringsIgnoringWhitespace(highlightedText, matchedText))
+								if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 								{
 									sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
 									sb.AppendLine($"検索テキスト: {matchedText}");
@@ -131,22 +130,30 @@ namespace Arx.DocSearch.Util
 			return matcheParagraphs;
 		}
 
-		private string HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matcheParagraphs, int beginIndex, int endIndex, StringBuilder sb, bool isDebug)
+		private string HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, StringBuilder sb, bool isDebug)
 		{
 			StringBuilder highlightedText = new StringBuilder();
-			foreach (int[] matcheParagraph in matcheParagraphs)
+			foreach (int[] matchedParagraph in matchedParagraphs)
 			{
-				int index = matcheParagraph[0];
-				int pos = matcheParagraph[1];
+				int index = matchedParagraph[0];
+				int pos = matchedParagraph[1];
 				Paragraph paragraph = paragraphs[index];
-				string paragraphText = paragraph.InnerText;
-				int paragraphLength = paragraphLengths[index];
-				int startInParagraph = beginIndex - pos - 1;
-				int endInParagraph = endIndex - pos + 1;
-				string matchedText = SafeSubstring(paragraphText, startInParagraph, endInParagraph - startInParagraph);
-				ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
-				highlightedText.Append(matchedText);
+
+				// SpecialCharConverterを使用
+				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+				if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex} convertedParagraphText: {convertedParagraphText}");
+
+				int startInParagraph = Math.Max(0, beginIndex - pos);
+				int endInParagraph = Math.Min(convertedParagraphText.Length, endIndex - pos + 1);
+
+				if (startInParagraph < convertedParagraphText.Length && endInParagraph > 0)
+				{
+					string matchedText = SafeSubstring(convertedParagraphText, startInParagraph, endInParagraph - startInParagraph);
+					highlightedText.Append(matchedText);
+					ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
+				}
 			}
+
 			return highlightedText.ToString();
 		}
 
@@ -204,7 +211,7 @@ namespace Arx.DocSearch.Util
 
 			foreach (var run in paragraph.Elements<Run>().ToList())
 			{
-				string runText = run.InnerText;
+				string runText = SpecialCharConverter.ConvertSpecialCharactersInRun(run);
 				int runLength = runText.Length;
 				int runStart = currentIndex;
 				int runEnd = runStart + runLength;
@@ -216,20 +223,17 @@ namespace Arx.DocSearch.Util
 
 					if (colorStart > 0)
 					{
-						Run beforeRun = new Run(new Text(runText.Substring(0, colorStart)) { Space = SpaceProcessingModeValues.Preserve });
-						CopyRunProperties(run, beforeRun);
+						Run beforeRun = CreateNewRun(run, runText.Substring(0, colorStart));
 						newRuns.Add(beforeRun);
 					}
 
-					Run coloredRun = new Run(new Text(runText.Substring(colorStart, colorEnd - colorStart)) { Space = SpaceProcessingModeValues.Preserve });
-					CopyRunProperties(run, coloredRun);
+					Run coloredRun = CreateNewRun(run, runText.Substring(colorStart, colorEnd - colorStart));
 					ApplyBackgroundColor(rate, coloredRun);
 					newRuns.Add(coloredRun);
 
 					if (colorEnd < runLength)
 					{
-						Run afterRun = new Run(new Text(runText.Substring(colorEnd)) { Space = SpaceProcessingModeValues.Preserve });
-						CopyRunProperties(run, afterRun);
+						Run afterRun = CreateNewRun(run, runText.Substring(colorEnd));
 						newRuns.Add(afterRun);
 					}
 				}
@@ -246,6 +250,32 @@ namespace Arx.DocSearch.Util
 			{
 				paragraph.AppendChild(newRun);
 			}
+		}
+
+		private Run CreateNewRun(Run originalRun, string text)
+		{
+			Run newRun = new Run();
+			CopyRunProperties(originalRun, newRun);
+
+			foreach (var child in originalRun.ChildElements)
+			{
+				if (child is Text)
+				{
+					newRun.AppendChild(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+				}
+				else if (child.LocalName == "sym")
+				{
+					// シンボル要素を適切に処理
+					var symElement = (OpenXmlElement)child.Clone();
+					newRun.AppendChild(symElement);
+				}
+				else
+				{
+					newRun.AppendChild((OpenXmlElement)child.Clone());
+				}
+			}
+
+			return newRun;
 		}
 
 		private void CopyRunProperties(Run sourceRun, Run targetRun)
