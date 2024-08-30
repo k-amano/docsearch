@@ -81,90 +81,41 @@ namespace Arx.DocSearch.SpecialChars
 			File.Copy(docFile, targetPath, true);
 			try
 			{
-				WordTextExtractor wte = new WordTextExtractor(docFile);
-				string docText = wte.Text;
 				string text = string.Empty;
+				List<int> indexes = new List<int>();
+				List<double> rates = new List<double>();
 				List<string> lines = new List<string>();
+				double[] ratesArray = { 1, 0.95, 0.85 };
 				using (StreamReader file = new StreamReader(srcFile))
 				{
 					string line;
+					int index = 0;
+					double rate = 0D;
 					while ((line = file.ReadLine()) != null)
 					{
 						lines.Add(line);
+						indexes.Add(index++);
+						Random random = new Random(Guid.NewGuid().GetHashCode());
+						int i = random.Next(0, ratesArray.Length);
+						rate = ratesArray[i];
+						rates.Add(rate);
 					}
 				}
-				bool found = true;
-				for (int i = 0; i < lines.Count; i++)
-				{
-					string line = lines[i];
-					if (!this.FindMatchLine(i, line, docFile, docText, targetDir)) found = false;
-				}
-				if (!found) this.WriteMatchLine(docText, docFile, targetDir);
+				WordTextHighLighter whl = new WordTextHighLighter();
+				string message = whl.HighlightTextInWord(targetPath, indexes.ToArray(), rates.ToArray(), lines.ToArray());
+				if (!string.IsNullOrEmpty(message)) this.WriteMatchLine(message, docFile, targetDir);
 			}
 			catch (Exception e)
 			{
 				Debug.WriteLine(e.StackTrace);
 			}
-			File.Delete(targetPath);
-		}
-
-		private bool FindMatchLine(int index, string line, string docFile, string docText, string targetDir)
-		{
-			bool found = true;
-			line = line.Trim();
-			if (0 == line.Length) return found;
-			try
-			{
-				// 検索テキストを正規表現パターンに変換
-				// Replace smart quotes with regular quotes
-				string normalizedText = Regex.Replace(line, @"([.:;)])(?!\s)", "$1 "); //「.:;)」の後に空白を入れる
-				normalizedText = Regex.Replace(normalizedText, @"(?<!\s)([.:;)])", " $1"); //「.:;)」の前に空白を入れる
-				/*normalizedText = Regex.Replace(normalizedText, @"\uF06D", " ");//ミクロン記号μ
-				normalizedText = Regex.Replace(normalizedText, @"eq\\o\([^,]+,¯\s\)", " ");//EQフィールド(数式)*/
-				string pattern = CreateSearchPattern(normalizedText);
-				// 正規表現を使用して検索
-				Match match = Regex.Match(docText, pattern, RegexOptions.IgnoreCase);
-				if (!match.Success)
-				{
-					string message = string.Format("Not found: index:{0} \nline:\n{1}\npattern:\n{2}\n", index + 1, normalizedText, pattern);
-					this.WriteMatchLine(message, docFile, targetDir);
-					found = false;
-				} else {
-
-					Debug.WriteLine(string.Format("index={0} pattern={1}", match.Index, pattern)) ;
-				}
-			}
-			catch (Exception e)
-			{
-				Debug.WriteLine("FindMatchLine:" + e.Message);
-			}
-			return found;
-		}
-
-		private string CreateSearchPattern(string searchText)
-		{
-			// Split the text into words
-			string[] words = searchText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-			// Process each word
-			string[] processedWords = words.Select(word =>
-			{
-				// Escape special regex characters except [ and ]
-				string escaped = Regex.Replace(word, @"[.^$*+?()[\]\\|{}]", @"\$&");
-
-				// Handle apostrophes specially
-				escaped = Regex.Replace(escaped, @"'", @"[‘’']");
-				escaped = Regex.Replace(escaped, @"""", @"[“”®™–—""]");
-
-				return escaped;
-			}).ToArray();
-			// Join the words with flexible whitespace
-			return string.Join(@"\s*", processedWords);
+			//File.Delete(targetPath);
 		}
 
 		private void WriteMatchLine(string message, string docFile, string targetDir)
 		{
 			string filename = Path.Combine(targetDir, Path.GetFileName(docFile) + ".txt");
+			File.Delete(filename);
 			rwl.AcquireWriterLock(Timeout.Infinite);
 			// ファイルオープン
 			try

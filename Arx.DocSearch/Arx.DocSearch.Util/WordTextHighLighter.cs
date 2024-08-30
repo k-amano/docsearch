@@ -27,7 +27,14 @@ namespace Arx.DocSearch.Util
 					if (body != null)
 					{
 						var paragraphs = body.Descendants<Paragraph>().ToList();
+						/*for (int i = 0; i < paragraphs.Count && i< wte.ParagraphTexts.Count; i++) {
+							string text1 = paragraphs[i].InnerText;
+							string text2 = wte.ParagraphTexts[i];
+							//if (text1 != text2) sb.AppendLine($"index: {i}\nparagraphs:\n{text1}\nwte.ParagraphTexts:\n{text2}");
+							sb.AppendLine($"index: {i}: {text2}");
+						}*/
 						string docText = CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
+						sb.AppendLine($"docText:\n{wte.Text}");
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
 							string pattern = CreateSearchPattern(searchPatterns[i]);
@@ -97,9 +104,9 @@ namespace Arx.DocSearch.Util
 				string escaped = Regex.Replace(word, @"[.^$*+?()[\]\\|{}]", @"\$&");
 
 				// Handle apostrophes specially
-				escaped = Regex.Replace(escaped, @"'", @"[’']");
+				escaped = Regex.Replace(escaped, @"'", @"[‘’']");
 				escaped = Regex.Replace(escaped, @"""", @"[“”®™–—""]");
-				escaped = Regex.Replace(escaped, @"([,.:;])(?!$)", @"$1\s*");
+				escaped = Regex.Replace(escaped, @"([,.:;()])(?!$)", @"$1\s*");
 
 				return escaped;
 			}).ToArray();

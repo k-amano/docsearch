@@ -9,6 +9,7 @@ using System;
 
 namespace Arx.DocSearch.Util
 {
+
 	public class WordTextExtractor
 	{
 		public WordTextExtractor(string filePath, bool isSingleLine = true, bool reducesBlankSpaces = true, Action<string> debugLogger = null)
@@ -42,45 +43,11 @@ namespace Arx.DocSearch.Util
 				var body = doc.MainDocumentPart.Document.Body;
 				if (body != null)
 				{
-					ExtractBodyElements(body.ChildElements);
-				}
-			}
-		}
-
-		private void ExtractBodyElements(IEnumerable<OpenXmlElement> elements)
-		{
-			foreach (var element in elements)
-			{
-				if (element is Paragraph paragraph)
-				{
-					string paragraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
-					ParagraphTexts.Add(paragraphText);
-				}
-				else if (element is Table table)
-				{
-					ExtractTableElements(table.ChildElements);
-				}
-			}
-		}
-
-
-		// テーブル要素を処理
-		private void ExtractTableElements(IEnumerable<OpenXmlElement> elements)
-		{
-			foreach (var element in elements)
-			{
-				if (element is TableRow row)
-				{
-					foreach (var cell in row.Elements<TableCell>())
+					var paragraphs = body.Descendants<Paragraph>().ToList();
+					foreach (var paragraph in paragraphs)
 					{
-						foreach (var cellChild in cell.ChildElements)
-						{
-							if (cellChild is Paragraph paragraph)
-							{
-								string cellText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
-								ParagraphTexts.Add(cellText);
-							}
-						}
+						string paragraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+						ParagraphTexts.Add(paragraphText);
 					}
 				}
 			}
@@ -142,6 +109,4 @@ namespace Arx.DocSearch.Util
 		}
 
 	}
-
-
 }

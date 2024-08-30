@@ -146,6 +146,10 @@ namespace Arx.DocSearch.Util
 			{
 				ProcessUnknownElement(unknownElement, depth, extractedText);
 			}
+			else if (element.LocalName == "oMath" || element.LocalName == "oMathPara")
+			{
+				extractedText.Append(ExtractFromMathElement(element, depth));
+			}
 			else
 			{
 				foreach (var child in element.Elements())
@@ -157,6 +161,9 @@ namespace Arx.DocSearch.Util
 
 		private static void ProcessRun(Run run, int depth, StringBuilder extractedText)
 		{
+			string convertedText = ConvertSpecialCharactersInRun(run);
+			extractedText.Append(convertedText);
+			/*
 			bool isSymbolFont = IsSymbolFont(run);
 
 			foreach (var runChild in run.ChildElements)
@@ -173,7 +180,7 @@ namespace Arx.DocSearch.Util
 				{
 					ProcessUnknownElement(unknownElement, depth + 1, extractedText);
 				}
-			}
+			}*/
 		}
 
 		private static void ProcessText(string textContent, bool isSymbolFont, int depth, StringBuilder extractedText)
@@ -221,7 +228,10 @@ namespace Arx.DocSearch.Util
 
 			if (isSymbolFont)
 			{
-				return ConvertSymbolChar(((byte)c).ToString("X2"));
+				if (SymbolToUnicode.TryGetValue((byte)c, out string unicodeChar))
+				{
+					return unicodeChar;
+				}
 			}
 
 			if (GreekCharMap.TryGetValue(c, out string greekChar))
@@ -264,6 +274,9 @@ namespace Arx.DocSearch.Util
 			{
 				case "oMathPara":
 				case "oMath":
+				case "sSup": // 上付き文字
+				case "sSubSup": // 下付きおよび上付き文字
+				case "sSub": // 下付き文字
 					foreach (var child in mathElement.ChildElements)
 					{
 						mathText.Append(ExtractFromMathElement(child, depth + 1));
@@ -273,6 +286,14 @@ namespace Arx.DocSearch.Util
 					string innerText = mathElement.InnerText;
 					string convertedText = ConvertMathText(innerText);
 					mathText.Append(convertedText);
+					break;
+				case "sup": // 上付き文字の内容
+					mathText.Append("^(");
+					foreach (var child in mathElement.ChildElements)
+					{
+						mathText.Append(ExtractFromMathElement(child, depth + 1));
+					}
+					mathText.Append(")");
 					break;
 				default:
 					foreach (var child in mathElement.ChildElements)
