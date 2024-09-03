@@ -591,8 +591,12 @@ namespace Arx.DocSearch.Client
 						if (line.Trim().EndsWith(".") && !sb.ToString().Trim().EndsWith(".")) writer.Write(". ");
 						startsWithCapital = false;
 						if (i + 1 < paragraphs.Length && this.StartsWithCapital(paragraphs[i + 1])) startsWithCapital = true;
-						if (startsWithCapital || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
+						bool isNumericLine = Regex.IsMatch(line.Trim(), @"^[\(\[<（＜〔【≪《][^\)\]>）＞〕】≫》]+[\)\]>）＞〕】≫》]$")
+	|| Regex.IsMatch(line.Trim(), @"^[0-9]+$"); //数字
+
+						if (startsWithCapital || isNumericLine || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
 						{
+
 							writer.Write("\n");//ピリオドまたは読点で終わっていれば改行する
 						}
 						else if (!string.IsNullOrEmpty(line.Trim()))
@@ -669,7 +673,9 @@ namespace Arx.DocSearch.Client
 							writer.Write(line);
 							bool startsWithCapital = false;
 							if (i + 1 < lines.Length && this.StartsWithCapital(lines[i + 1])) startsWithCapital = true;
-							if (startsWithCapital || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
+							bool isNumericLine = Regex.IsMatch(line.Trim(), @"^[\(\[<（＜〔【≪《][^\)\]>）＞〕】≫》]+[\)\]>）＞〕】≫》]$")
+								|| Regex.IsMatch(line.Trim(), @"^[0-9]+$"); //数字
+							if (startsWithCapital || isNumericLine || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
 							{
 
 								writer.Write("\n");//ピリオドまたは読点で終わっていれば改行する
@@ -678,6 +684,7 @@ namespace Arx.DocSearch.Client
 							{
 								writer.Write(" "); //それ以外は空白を追加。
 							}
+
 						}
 					}
 				}
@@ -713,6 +720,12 @@ namespace Arx.DocSearch.Client
 			line = Regex.Replace(line ?? "", @"。([^\n])", "。  \n($1)"); //読点。
 			line = TextConverter.ZenToHan(line ?? "");
 			line = TextConverter.HankToZen(line ?? "");
+			//line = Regex.Replace(line, @"^([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*)", "\n$1$2$3$4  \n"); //【数字】
+			//line = Regex.Replace(line ?? "", @"\s*((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
+			line = Regex.Replace(line ?? "", @"([＜〔【≪《][^＞〕】≫》]+[＞〕】≫》])", "\n$1\n"); //【数字】
+			line = Regex.Replace(line ?? "", @"^\s([\(\[<（][0-9]+[\)\]>）])", "\n$1\n"); //【数字】
+			line = Regex.Replace(line ?? "", @"^\s*([0-9]+)(\.?)\s+", "\n$1$2\n"); //数字
+																				  //line = Regex.Replace(line, @"([.,:;])", " $1 "); //半角句読点は前後にスペース
 			if (isContinuousNumber && Regex.IsMatch(line ?? "".Trim(), @"^[ 0-9+-]+$"))
 			{
 				if (excludesTable)
@@ -726,16 +739,14 @@ namespace Arx.DocSearch.Client
 					return line;
 				}
 			}
-			//line = Regex.Replace(line, @"^([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*)", "\n$1$2$3$4  \n"); //【数字】
-			line = Regex.Replace(line ?? "", @"^\s*((([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*))+)", "\n$1  \n"); //【数字】
-			line = Regex.Replace(line ?? "", @"^\s*([0-9]+)(\.?)", "\n$1$2  \n"); //数字
-			//line = Regex.Replace(line, @"([.,:;])", " $1 "); //半角句読点は前後にスペース
 			return line;
 		}
 
 		private bool StartsWithCapital(string line)
 		{
-			if (Regex.IsMatch(line, @"^(\s*[A-Z][^.])")) return true;
+			bool isNumericLine = Regex.IsMatch(line.Trim(), @"^[\(\[<（＜〔【≪《][^\)\]>）＞〕】≫》]+[\)\]>）＞〕】≫》]")
+		|| Regex.IsMatch(line.Trim(), @"^[0-9]+$"); //数字
+			if (isNumericLine || Regex.IsMatch(line, @"^(\s*[A-Z][^.])")) return true;
 			else return false;
 		}
 

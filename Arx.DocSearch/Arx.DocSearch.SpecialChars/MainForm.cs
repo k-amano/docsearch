@@ -29,6 +29,7 @@ namespace Arx.DocSearch.SpecialChars
 			this.folderBrowserDialog1.Description = "検索先のフォルダを指定してください。";
 			this.folderBrowserDialog2.Description = "検索結果を出力するフォルダを指定してください。";
 			this.label1.Text = "検索先と検索結果を出力するフォルダを指定して開始ボタンをクリックしてください。";
+			this.button2.Visible = false;
 		}
 
 		private void button1_Click(object sender, EventArgs e)
@@ -43,6 +44,7 @@ namespace Arx.DocSearch.SpecialChars
 		}
 
 		private void FindMatchLinesFromWord(string srcPath, string targetPath) {
+			this.button1.Visible = false;
 			string textDir = Path.Combine(srcPath, ".adsidx");
 			if (Directory.Exists(textDir)) { }
 			List<string> srcFiles = this.FindDocuments(textDir);
@@ -52,10 +54,12 @@ namespace Arx.DocSearch.SpecialChars
 				// 拡張子を除いたファイル名を取得
 				string docFile = Path.Combine(srcPath, Path.GetFileNameWithoutExtension(fileName));
 				this.label1.Text = docFile + "を処理中。";
+				Application.DoEvents();
 				Debug.WriteLine(docFile);
 				this.EditWord(srcFile, docFile, targetPath);
 			}
 			this.label1.Text = "終了しました。";
+			this.button2.Visible = true;
 
 		}
 
@@ -131,6 +135,11 @@ namespace Arx.DocSearch.SpecialChars
 				// ロック解除は finally の中で行う
 				rwl.ReleaseWriterLock();
 			}
+		}
+
+		private void button2_Click(object sender, EventArgs e)
+		{
+			this.Close();
 		}
 	}
 }

@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.ExtendedProperties;
-using DocumentFormat.OpenXml.Office2019.Excel.RichData2;
 using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Vml.Spreadsheet;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Color = System.Drawing.Color;
 
@@ -34,24 +32,38 @@ namespace Arx.DocSearch.Util
 							sb.AppendLine($"index: {i}: {text2}");
 						}*/
 						string docText = CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
-						sb.AppendLine($"docText:\n{wte.Text}");
+						//sb.AppendLine($"docText:\n{wte.Text}");
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
 							string pattern = CreateSearchPattern(searchPatterns[i]);
+							if (pattern.Length < 10) continue;
 							var result = MatchIgnoringWhitespace(pattern, docText, sb);
 							if (result.matched)
 							{
 								List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
-								string highlightedText = HighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
+
 								string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
+								string[] ret = HighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
+								string highlightedText = ret[0];
+								string paragrapghText = ret[1];
+								bool colorMatched = true;
 
 								if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 								{
-									sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
-									sb.AppendLine($"検索テキスト: {matchedText}");
-									sb.AppendLine($"色付け箇所: {highlightedText}");
+									string text = matchedText;
+									if (50 < matchedText.Length) text = matchedText.Substring(0, 50);
+									int index = paragrapghText.IndexOf(text);
+									if (index < 0)
+									{
+										sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
+										sb.AppendLine($"検索テキスト: {matchedText}");
+										sb.AppendLine($"色付け箇所: {highlightedText}");
+										sb.AppendLine($"paragrapghText: {paragrapghText}");
+										colorMatched = false;
+									}
+
 								}
-								else if (isDebug)
+								if (isDebug && colorMatched)
 								{
 									sb.AppendLine("色付け箇所と検索テキストが一致しました。");
 									sb.AppendLine($"検索テキスト: {matchedText}");
@@ -102,11 +114,19 @@ namespace Arx.DocSearch.Util
 			{
 				// Escape special regex characters except [ and ]
 				string escaped = Regex.Replace(word, @"[.^$*+?()[\]\\|{}]", @"\$&");
-
 				// Handle apostrophes specially
 				escaped = Regex.Replace(escaped, @"'", @"[‘’']");
 				escaped = Regex.Replace(escaped, @"""", @"[“”®™–—""]");
 				escaped = Regex.Replace(escaped, @"([,.:;()])(?!$)", @"$1\s*");
+
+				// 修正箇所: エスケープされた文字と未エスケープの文字の両方に対応
+				escaped = Regex.Replace(escaped, @"(\\[,.:;()])|([,.:;()])", m =>
+				{
+					if (m.Groups[1].Success) // エスケープされた文字の場合
+						return @"\s*" + m.Groups[1].Value + "+";
+					else // エスケープされていない文字の場合
+						return m.Groups[2].Value;
+				});
 
 				return escaped;
 			}).ToArray();
@@ -137,9 +157,10 @@ namespace Arx.DocSearch.Util
 			return matcheParagraphs;
 		}
 
-		private string HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, StringBuilder sb, bool isDebug)
+		private string[] HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, StringBuilder sb, bool isDebug)
 		{
 			StringBuilder highlightedText = new StringBuilder();
+			StringBuilder paragraphText = new StringBuilder();
 			foreach (int[] matchedParagraph in matchedParagraphs)
 			{
 				int index = matchedParagraph[0];
@@ -148,6 +169,7 @@ namespace Arx.DocSearch.Util
 
 				// SpecialCharConverterを使用
 				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+				paragraphText.Append(convertedParagraphText);
 				if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex} convertedParagraphText: {convertedParagraphText}");
 
 				int startInParagraph = Math.Max(0, beginIndex - pos);
@@ -161,7 +183,11 @@ namespace Arx.DocSearch.Util
 				}
 			}
 
-			return highlightedText.ToString();
+			string[] ret = new string[2];
+			ret[0] = highlightedText.ToString();
+			ret[1] = paragraphText.ToString();
+
+			return ret;
 		}
 
 		public string SafeSubstring(string str, int startIndex, int length)
