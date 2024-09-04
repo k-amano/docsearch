@@ -673,8 +673,8 @@ namespace Arx.DocSearch.Client
 							writer.Write(line);
 							bool startsWithCapital = false;
 							if (i + 1 < lines.Length && this.StartsWithCapital(lines[i + 1])) startsWithCapital = true;
-							bool isNumericLine = Regex.IsMatch(line.Trim(), @"^[\(\[<（＜〔【≪《][^\)\]>）＞〕】≫》]+[\)\]>）＞〕】≫》]$")
-								|| Regex.IsMatch(line.Trim(), @"^[0-9]+$"); //数字
+							bool isNumericLine = Regex.IsMatch(line.Trim(), @"^[\(\[<（＜〔【≪《][^\)\]>）＞〕】≫》]+[\)\]>）＞〕】≫》]")
+						|| Regex.IsMatch(line.Trim(), @"^[0-9０-９]+\.?$"); //数字
 							if (startsWithCapital || isNumericLine || line.TrimEnd().EndsWith(".") || line.TrimEnd().EndsWith("。"))
 							{
 
@@ -745,7 +745,7 @@ namespace Arx.DocSearch.Client
 		private bool StartsWithCapital(string line)
 		{
 			bool isNumericLine = Regex.IsMatch(line.Trim(), @"^[\(\[<（＜〔【≪《][^\)\]>）＞〕】≫》]+[\)\]>）＞〕】≫》]")
-		|| Regex.IsMatch(line.Trim(), @"^[0-9]+$"); //数字
+		|| Regex.IsMatch(line.Trim(), @"^[0-9０-９]+\.?$"); //数字
 			if (isNumericLine || Regex.IsMatch(line, @"^(\s*[A-Z][^.])")) return true;
 			else return false;
 		}

@@ -35,8 +35,11 @@ namespace Arx.DocSearch.Util
 						//sb.AppendLine($"docText:\n{wte.Text}");
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
-							string pattern = CreateSearchPattern(searchPatterns[i]);
-							if (pattern.Length < 10) continue;
+							string searchPattern = Regex.Replace(searchPatterns[i], @"^[0-9]+\.?\s+", "");
+							searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
+							string[] words = searchPattern.Split(' ');
+							if (words.Length < 3) continue;
+							string pattern = CreateSearchPattern(searchPattern);
 							var result = MatchIgnoringWhitespace(pattern, docText, sb);
 							if (result.matched)
 							{
@@ -47,6 +50,7 @@ namespace Arx.DocSearch.Util
 								string highlightedText = ret[0];
 								string paragrapghText = ret[1];
 								bool colorMatched = true;
+								//sb.AppendLine($"paragrapghText:\n{paragrapghText}");
 
 								if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 								{
@@ -170,7 +174,7 @@ namespace Arx.DocSearch.Util
 				// SpecialCharConverterを使用
 				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
 				paragraphText.Append(convertedParagraphText);
-				if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex} convertedParagraphText: {convertedParagraphText}");
+				if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex}\nconvertedParagraphText: {convertedParagraphText}\nparagraph.InnerText: {paragraph.InnerText}");
 
 				int startInParagraph = Math.Max(0, beginIndex - pos);
 				int endInParagraph = Math.Min(convertedParagraphText.Length, endIndex - pos + 1);
@@ -239,50 +243,170 @@ namespace Arx.DocSearch.Util
 
 		private void ApplyBackgroundColorToParagraph(Paragraph paragraph, double rate, int startIndex, int endIndex)
 		{
+			string paragraphText = paragraph.InnerText;
+			List<(int start, int end, OpenXmlElement element)> elementRanges = new List<(int, int, OpenXmlElement)>();
 			int currentIndex = 0;
-			List<Run> newRuns = new List<Run>();
 
-			foreach (var run in paragraph.Elements<Run>().ToList())
+			foreach (var element in paragraph.Elements())
 			{
-				string runText = SpecialCharConverter.ConvertSpecialCharactersInRun(run);
-				int runLength = runText.Length;
-				int runStart = currentIndex;
-				int runEnd = runStart + runLength;
+				int elementLength = element.InnerText.Length;
+				elementRanges.Add((currentIndex, currentIndex + elementLength, element));
+				currentIndex += elementLength;
+			}
 
-				if (runEnd > startIndex && runStart < endIndex)
+			List<OpenXmlElement> newElements = new List<OpenXmlElement>();
+
+			foreach (var (elemStart, elemEnd, element) in elementRanges)
+			{
+				if (element is Run run)
 				{
-					int colorStart = Math.Max(0, startIndex - runStart);
-					int colorEnd = Math.Min(runLength, endIndex - runStart);
-
-					if (colorStart > 0)
-					{
-						Run beforeRun = CreateNewRun(run, runText.Substring(0, colorStart));
-						newRuns.Add(beforeRun);
-					}
-
-					Run coloredRun = CreateNewRun(run, runText.Substring(colorStart, colorEnd - colorStart));
-					ApplyBackgroundColor(rate, coloredRun);
-					newRuns.Add(coloredRun);
-
-					if (colorEnd < runLength)
-					{
-						Run afterRun = CreateNewRun(run, runText.Substring(colorEnd));
-						newRuns.Add(afterRun);
-					}
+					ProcessRunWithGlobalIndices(run, rate, elemStart, elemEnd, startIndex, endIndex, newElements);
 				}
 				else
 				{
-					newRuns.Add((Run)run.Clone());
+					newElements.Add(element.Clone() as OpenXmlElement);
+				}
+			}
+
+			paragraph.RemoveAllChildren();
+			foreach (var newElement in newElements)
+			{
+				paragraph.AppendChild(newElement);
+			}
+		}
+
+		private void ProcessRunWithGlobalIndices(Run run, double rate, int runStart, int runEnd, int startIndex, int endIndex, List<OpenXmlElement> newElements)
+		{
+			string runText = run.InnerText;
+			int runLength = runText.Length;
+
+			if (runEnd <= startIndex || runStart >= endIndex)
+			{
+				newElements.Add(run.Clone() as Run);
+				return;
+			}
+
+			int colorStart = Math.Max(0, startIndex - runStart);
+			int colorEnd = Math.Min(runLength, endIndex - runStart);
+
+			if (colorStart > 0)
+			{
+				Run beforeRun = CreateNewRun(run, runText.Substring(0, colorStart));
+				newElements.Add(beforeRun);
+			}
+
+			if (colorEnd > colorStart)
+			{
+				Run coloredRun = CreateNewRun(run, runText.Substring(colorStart, colorEnd - colorStart));
+				ApplyBackgroundColor(rate, coloredRun);
+				newElements.Add(coloredRun);
+			}
+
+			if (colorEnd < runLength)
+			{
+				Run afterRun = CreateNewRun(run, runText.Substring(colorEnd));
+				newElements.Add(afterRun);
+			}
+		}
+
+		private void ProcessRun(Run run, double rate, ref int currentIndex, int startIndex, int endIndex, List<OpenXmlElement> newElements)
+		{
+			int runLength = CalculateRunLength(run);
+			int runStart = currentIndex;
+			int runEnd = runStart + runLength;
+
+			Console.WriteLine($"ProcessRun: run.InnerText='{run.InnerText}', calculatedLength={runLength}, currentIndex={currentIndex}, startIndex={startIndex}, endIndex={endIndex}");
+
+			if (runEnd > startIndex && runStart < endIndex)
+			{
+				int colorStart = Math.Max(0, startIndex - runStart);
+				int colorEnd = Math.Min(runLength, endIndex - runStart);
+
+				Console.WriteLine($"Color range: colorStart={colorStart}, colorEnd={colorEnd}");
+
+				if (colorStart > 0)
+				{
+					Run beforeRun = CreateNewRun(run, GetSubRunText(run, 0, colorStart));
+					newElements.Add(beforeRun);
 				}
 
-				currentIndex += runLength;
+				Run coloredRun = CreateNewRun(run, GetSubRunText(run, colorStart, colorEnd));
+				ApplyBackgroundColor(rate, coloredRun);
+				newElements.Add(coloredRun);
+
+				if (colorEnd < runLength)
+				{
+					Run afterRun = CreateNewRun(run, GetSubRunText(run, colorEnd, runLength));
+					newElements.Add(afterRun);
+				}
+			}
+			else
+			{
+				newElements.Add(CreateNewRun(run, run.InnerText));
 			}
 
-			paragraph.RemoveAllChildren<Run>();
-			foreach (var newRun in newRuns)
+			currentIndex += runLength;
+			Console.WriteLine($"ProcessRun completed: currentIndex={currentIndex}");
+		}
+
+		private int CalculateRunLength(Run run)
+		{
+			int length = 0;
+			foreach (var child in run.ChildElements)
 			{
-				paragraph.AppendChild(newRun);
+				if (child is Text text)
+				{
+					length += text.Text.Length;
+				}
+				else if (child.LocalName == "sym")
+				{
+					length += 1; // シンボル要素は1文字としてカウント
+				}
 			}
+			return length;
+		}
+
+		private string GetSubRunText(Run run, int start, int end)
+		{
+			StringBuilder sb = new StringBuilder();
+			int currentIndex = 0;
+
+			foreach (var child in run.ChildElements)
+			{
+				if (child is Text text)
+				{
+					int textLength = text.Text.Length;
+					if (currentIndex + textLength > start && currentIndex < end)
+					{
+						int subStart = Math.Max(0, start - currentIndex);
+						int subEnd = Math.Min(textLength, end - currentIndex);
+						sb.Append(text.Text.Substring(subStart, subEnd - subStart));
+					}
+					currentIndex += textLength;
+				}
+				else if (child.LocalName == "sym")
+				{
+					if (currentIndex >= start && currentIndex < end)
+					{
+						sb.Append(GetSymbolChar(child));
+					}
+					currentIndex += 1;
+				}
+
+				if (currentIndex >= end) break;
+			}
+
+			return sb.ToString();
+		}
+
+		private string GetSymbolChar(OpenXmlElement symbolElement)
+		{
+			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
+			if (charAttribute != null)
+			{
+				return SpecialCharConverter.ConvertSymbolChar(charAttribute.Value);
+			}
+			return "";
 		}
 
 		private Run CreateNewRun(Run originalRun, string text)
@@ -298,7 +422,6 @@ namespace Arx.DocSearch.Util
 				}
 				else if (child.LocalName == "sym")
 				{
-					// シンボル要素を適切に処理
 					var symElement = (OpenXmlElement)child.Clone();
 					newRun.AppendChild(symElement);
 				}
@@ -372,6 +495,77 @@ namespace Arx.DocSearch.Util
 				sb.AppendLine($"正規表現エラー: {ex.Message}");
 				sb.AppendLine($"スタックトレース: {ex.StackTrace}");
 				return (false, -1, -1);
+			}
+		}
+
+		private void ProcessMathElement(OpenXmlElement mathElement, double rate, ref int currentIndex, int startIndex, int endIndex, List<OpenXmlElement> newElements)
+		{
+			string mathText = ExtractTextFromMathElement(mathElement);
+			int mathLength = mathText.Length;
+			int mathStart = currentIndex;
+			int mathEnd = mathStart + mathLength;
+
+			if (mathEnd > startIndex && mathStart < endIndex)
+			{
+				var newMathElement = (OpenXmlElement)mathElement.Clone();
+				ColorMathElementRecursive(newMathElement, rate, startIndex - mathStart, endIndex - mathStart);
+				newElements.Add(newMathElement);
+			}
+			else
+			{
+				newElements.Add((OpenXmlElement)mathElement.Clone());
+			}
+
+			currentIndex += mathLength;
+		}
+
+		private string ExtractTextFromMathElement(OpenXmlElement mathElement)
+		{
+			return string.Join("", mathElement.Descendants<Text>().Select(t => t.Text));
+		}
+
+		private void ColorMathElementRecursive(OpenXmlElement element, double rate, int startIndex, int endIndex)
+		{
+			int currentIndex = 0;
+			foreach (var child in element.Elements().ToList())
+			{
+				if (child is Run run)
+				{
+					string runText = run.InnerText;
+					int runLength = runText.Length;
+					if (currentIndex + runLength > startIndex && currentIndex < endIndex)
+					{
+						int colorStart = Math.Max(0, startIndex - currentIndex);
+						int colorEnd = Math.Min(runLength, endIndex - currentIndex);
+
+						var newRun = (Run)run.Clone();
+						newRun.RemoveAllChildren();
+
+						if (colorStart > 0)
+						{
+							newRun.AppendChild(new Text(runText.Substring(0, colorStart)));
+						}
+
+						var coloredRun = (Run)run.Clone();
+						coloredRun.RemoveAllChildren();
+						coloredRun.AppendChild(new Text(runText.Substring(colorStart, colorEnd - colorStart)));
+						ApplyBackgroundColor(rate, coloredRun);
+						newRun.AppendChild(coloredRun);
+
+						if (colorEnd < runLength)
+						{
+							newRun.AppendChild(new Text(runText.Substring(colorEnd)));
+						}
+
+						element.ReplaceChild(newRun, run);
+					}
+					currentIndex += runLength;
+				}
+				else
+				{
+					ColorMathElementRecursive(child, rate, startIndex - currentIndex, endIndex - currentIndex);
+					currentIndex += child.InnerText.Length;
+				}
 			}
 		}
 	}
