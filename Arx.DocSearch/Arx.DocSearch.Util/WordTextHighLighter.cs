@@ -4,10 +4,12 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Windows;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Color = System.Drawing.Color;
+using Microsoft.International.Converters;
 
 namespace Arx.DocSearch.Util
 {
@@ -32,6 +34,8 @@ namespace Arx.DocSearch.Util
 							sb.AppendLine($"index: {i}: {text2}");
 						}*/
 						string docText = CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
+						docText = TextConverter.ZenToHan(docText ?? "");
+						docText = TextConverter.HankToZen(docText ?? "");
 						//sb.AppendLine($"docText:\n{wte.Text}");
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
@@ -40,38 +44,42 @@ namespace Arx.DocSearch.Util
 							string[] words = searchPattern.Split(' ');
 							if (words.Length < 3) continue;
 							string pattern = CreateSearchPattern(searchPattern);
-							var result = MatchIgnoringWhitespace(pattern, docText, sb);
-							if (result.matched)
+							var results = MatchIgnoringWhitespace(pattern, docText, sb);
+
+							if (results.Count > 0)
 							{
-								List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
-
-								string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
-								string[] ret = HighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
-								string highlightedText = ret[0];
-								string paragrapghText = ret[1];
-								bool colorMatched = true;
-								//sb.AppendLine($"paragrapghText:\n{paragrapghText}");
-
-								if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
+								foreach (var result in results)
 								{
-									string text = matchedText;
-									if (50 < matchedText.Length) text = matchedText.Substring(0, 50);
-									int index = paragrapghText.IndexOf(text);
-									if (index < 0)
+									List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
+
+									string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
+									string[] ret = HighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
+									string highlightedText = ret[0];
+									string paragrapghText = ret[1];
+									bool colorMatched = true;
+									//sb.AppendLine($"paragrapghText:\n{paragrapghText}");
+
+									if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 									{
-										sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
+										string text = matchedText;
+										if (50 < matchedText.Length) text = matchedText.Substring(0, 50);
+										int index = paragrapghText.IndexOf(text);
+										if (index < 0)
+										{
+											sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
+											sb.AppendLine($"検索テキスト: {matchedText}");
+											sb.AppendLine($"色付け箇所: {highlightedText}");
+											sb.AppendLine($"paragrapghText: {paragrapghText}");
+											colorMatched = false;
+										}
+
+									}
+									if (isDebug && colorMatched)
+									{
+										sb.AppendLine("色付け箇所と検索テキストが一致しました。");
 										sb.AppendLine($"検索テキスト: {matchedText}");
 										sb.AppendLine($"色付け箇所: {highlightedText}");
-										sb.AppendLine($"paragrapghText: {paragrapghText}");
-										colorMatched = false;
 									}
-
-								}
-								if (isDebug && colorMatched)
-								{
-									sb.AppendLine("色付け箇所と検索テキストが一致しました。");
-									sb.AppendLine($"検索テキスト: {matchedText}");
-									sb.AppendLine($"色付け箇所: {highlightedText}");
 								}
 							}
 							else
@@ -461,40 +469,42 @@ namespace Arx.DocSearch.Util
 			return str1WithoutWhitespace.Equals(str2WithoutWhitespace);
 		}
 
-		public (bool matched, int beginIndex, int endIndex) MatchIgnoringWhitespace(string pattern, string text, StringBuilder sb)
+		public List<(int beginIndex, int endIndex)> MatchIgnoringWhitespace(string pattern, string text, StringBuilder sb)
 		{
 			try
 			{
 				Regex regex = new Regex(pattern, RegexOptions.Compiled | RegexOptions.Multiline);
-				Match match = regex.Match(text);
+				MatchCollection matches = regex.Matches(text);
 
-				if (!match.Success)
+				List<(int beginIndex, int endIndex)> result = new List<(int beginIndex, int endIndex)>();
+
+				foreach (Match match in matches)
 				{
-					return (false, -1, -1);
+					int beginIndex = match.Index;
+					int endIndex = match.Index + match.Length - 1;
+
+					// 先頭の空白をスキップ
+					while (beginIndex <= endIndex && char.IsWhiteSpace(text[beginIndex]))
+					{
+						beginIndex++;
+					}
+
+					// 末尾の空白をスキップ
+					while (endIndex >= beginIndex && char.IsWhiteSpace(text[endIndex]))
+					{
+						endIndex--;
+					}
+
+					result.Add((beginIndex, endIndex));
 				}
 
-				int beginIndex = match.Index;
-				int endIndex = match.Index + match.Length - 1;
-
-				// 先頭の空白をスキップ
-				while (beginIndex <= endIndex && char.IsWhiteSpace(text[beginIndex]))
-				{
-					beginIndex++;
-				}
-
-				// 末尾の空白をスキップ
-				while (endIndex >= beginIndex && char.IsWhiteSpace(text[endIndex]))
-				{
-					endIndex--;
-				}
-
-				return (true, beginIndex, endIndex);
+				return result;
 			}
 			catch (ArgumentException ex)
 			{
 				sb.AppendLine($"正規表現エラー: {ex.Message}");
 				sb.AppendLine($"スタックトレース: {ex.StackTrace}");
-				return (false, -1, -1);
+				return new List<(int beginIndex, int endIndex)>();
 			}
 		}
 

@@ -143,7 +143,6 @@
     <Compile Include="SelectSourceForm.Designer.cs">
       <DependentUpon>SelectSourceForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="TextConverter.cs" />
     <Compile Include="WordConverter.cs" />
     <EmbeddedResource Include="CompareForm.resx">
       <DependentUpon>CompareForm.cs</DependentUpon>
