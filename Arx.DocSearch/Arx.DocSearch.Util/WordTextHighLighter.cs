@@ -41,11 +41,12 @@ namespace Arx.DocSearch.Util
 						{
 							string searchPattern = Regex.Replace(searchPatterns[i], @"^[0-9]+\.?\s+", "");
 							searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
+							//sb.AppendLine($"searchPattern: index:{i}\n{searchPattern}");
 							string[] words = searchPattern.Split(' ');
-							if (words.Length < 3) continue;
+							if (searchPattern.Length < 20 && words.Length < 3) continue;
 							string pattern = CreateSearchPattern(searchPattern);
 							var results = MatchIgnoringWhitespace(pattern, docText, sb);
-
+							//sb.AppendLine($"results.Count: {results.Count}");
 							if (results.Count > 0)
 							{
 								foreach (var result in results)
@@ -182,7 +183,7 @@ namespace Arx.DocSearch.Util
 				// SpecialCharConverterを使用
 				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
 				paragraphText.Append(convertedParagraphText);
-				if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex}\nconvertedParagraphText: {convertedParagraphText}\nparagraph.InnerText: {paragraph.InnerText}");
+				//if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex}\nconvertedParagraphText: {convertedParagraphText}\nparagraph.InnerText: {paragraph.InnerText}");
 
 				int startInParagraph = Math.Max(0, beginIndex - pos);
 				int endInParagraph = Math.Min(convertedParagraphText.Length, endIndex - pos + 1);

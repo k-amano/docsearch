@@ -9,7 +9,6 @@ using System;
 
 namespace Arx.DocSearch.Util
 {
-
 	public class WordTextExtractor
 	{
 		public WordTextExtractor(string filePath, bool isSingleLine = true, bool reducesBlankSpaces = true, Action<string> debugLogger = null)
