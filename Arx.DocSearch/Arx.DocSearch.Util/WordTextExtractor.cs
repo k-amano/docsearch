@@ -46,6 +46,7 @@ namespace Arx.DocSearch.Util
 					foreach (var paragraph in paragraphs)
 					{
 						string paragraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+						paragraphText = SpecialCharConverter.ReplaceLine(paragraphText);
 						ParagraphTexts.Add(paragraphText);
 					}
 				}

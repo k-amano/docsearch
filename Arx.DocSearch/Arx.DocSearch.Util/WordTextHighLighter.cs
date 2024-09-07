@@ -34,8 +34,8 @@ namespace Arx.DocSearch.Util
 							sb.AppendLine($"index: {i}: {text2}");
 						}*/
 						string docText = CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
-						docText = TextConverter.ZenToHan(docText ?? "");
-						docText = TextConverter.HankToZen(docText ?? "");
+						//docText = TextConverter.ZenToHan(docText ?? "");
+						//docText = TextConverter.HankToZen(docText ?? "");
 						//sb.AppendLine($"docText:\n{wte.Text}");
 						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
@@ -140,7 +140,7 @@ namespace Arx.DocSearch.Util
 				escaped = Regex.Replace(escaped, @"(\\[,.:;()])|([,.:;()])", m =>
 				{
 					if (m.Groups[1].Success) // エスケープされた文字の場合
-						return @"\s*" + m.Groups[1].Value + "+";
+						return @"(\s*" + m.Groups[1].Value + ")+";
 					else // エスケープされていない文字の場合
 						return m.Groups[2].Value;
 				});
@@ -186,6 +186,7 @@ namespace Arx.DocSearch.Util
 
 				// SpecialCharConverterを使用
 				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+				convertedParagraphText = SpecialCharConverter.ReplaceLine(convertedParagraphText);
 				paragraphText.Append(convertedParagraphText);
 				//if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex}\nconvertedParagraphText: {convertedParagraphText}\nparagraph.InnerText: {paragraph.InnerText}");
 
