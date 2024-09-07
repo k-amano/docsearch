@@ -59,6 +59,10 @@ namespace Arx.DocSearch.Util
 									string paragrapghText = ret[1];
 									bool colorMatched = true;
 									//sb.AppendLine($"paragrapghText:\n{paragrapghText}");
+									highlightedText = TextConverter.ZenToHan(highlightedText ?? "");
+									highlightedText = TextConverter.HankToZen(highlightedText ?? "");
+									paragrapghText = TextConverter.ZenToHan(paragrapghText ?? "");
+									paragrapghText = TextConverter.HankToZen(paragrapghText ?? "");
 
 									if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 									{

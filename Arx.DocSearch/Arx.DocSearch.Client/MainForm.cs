@@ -545,6 +545,7 @@ namespace Arx.DocSearch.Client
 					//int l = ExtractText(srcFile, false, ref fileText);
 					WordTextExtractor wte = new WordTextExtractor(path, false);
 					fileText = wte.Text;
+					this.WriteLog(textFile +"\n"+fileText);
 
 					string[] paragraphs = fileText.Split('\n');
 					int maxContiuousNumber = 0;
@@ -716,8 +717,8 @@ namespace Arx.DocSearch.Client
 			//2個以上連続するスペースは1個の半角スペースにする。
 			line = Regex.Replace(line ?? "", @"\s+", " ");
 			//センテンスの終わりで「半角スペース2個」+改行とする。
-			line = Regex.Replace(line ?? "", @"\. +", ".  \n"); //ピリオド+半角スペース1個は改行
-			line = Regex.Replace(line ?? "", @"。([^\n])", "。  \n($1)"); //読点。
+			line = Regex.Replace(line ?? "", @"\. +\s+", ".  \n"); //ピリオド+半角スペース1個は改行
+			line = Regex.Replace(line ?? "", @"。([^\n])", "。  \n$1"); //読点。
 			line = TextConverter.ZenToHan(line ?? "");
 			line = TextConverter.HankToZen(line ?? "");
 			//line = Regex.Replace(line, @"^([\(\[<（＜〔【≪《])([^0-9]*[0-9]*)([\)\]>）＞〕】≫》])(\s*)", "\n$1$2$3$4  \n"); //【数字】
