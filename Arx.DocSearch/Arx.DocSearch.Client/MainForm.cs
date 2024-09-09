@@ -582,7 +582,8 @@ namespace Arx.DocSearch.Client
 								{
 									sb.Append(".\n");//次が大文字で始まっていれば改行する
 								}
-								else if (!string.IsNullOrEmpty(sentence.Trim()))
+								//else if (!string.IsNullOrEmpty(sentence.Trim())) 
+								else //空白行でも「.」でsplitしている以上、「.」の追加は必要
 								{
 									sb.Append(". "); //それ以外は空白を追加。
 								}
