@@ -538,7 +538,7 @@ namespace Arx.DocSearch.Client
 					string fileText = "";
 					if (extension.Equals(".doc", StringComparison.OrdinalIgnoreCase))
 					{
-						WordDocumentConverter.ConvertDocToDocx(this.word, srcFile, path);
+						if (!File.Exists(path)) WordDocumentConverter.ConvertDocToDocx(this.word, srcFile, path);
 					} else {
 						path = srcFile;
 					}
@@ -708,7 +708,7 @@ namespace Arx.DocSearch.Client
 		{
 			line = Regex.Replace(line ?? "", @"\s*SEQ Paragraph\s+\\#\s+""?\[\d+\]""?\s+(\\\*\s*MERGEFORMAT\s*)+", "");//フィールドコードを削除
 			line = Regex.Replace(line ?? "", @"[\x00-\x1F\x7F]", "");
-			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
+			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0\u200e]", " "); //文字コードC2A0（UTF-8の半角空白）
 			line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
 			line = Regex.Replace(line ?? "", @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
 			line = Regex.Replace(line ?? "", @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン

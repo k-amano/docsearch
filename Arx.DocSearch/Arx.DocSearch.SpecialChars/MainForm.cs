@@ -106,7 +106,7 @@ namespace Arx.DocSearch.SpecialChars
 					}
 				}
 				WordTextHighLighter whl = new WordTextHighLighter();
-				string message = whl.HighlightTextInWord(targetPath, indexes.ToArray(), rates.ToArray(), lines.ToArray());
+				string message = whl.HighlightTextInWord(targetPath, indexes.ToArray(), rates.ToArray(), lines.ToArray(), true);
 				if (!string.IsNullOrEmpty(message)) this.WriteMatchLine(message, docFile, targetDir);
 			}
 			catch (Exception e)

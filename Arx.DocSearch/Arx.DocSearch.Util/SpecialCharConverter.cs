@@ -367,7 +367,7 @@ namespace Arx.DocSearch.Util
 
 		public static string ReplaceLine(string line)
 		{
-			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0]", " "); //文字コードC2A0（UTF-8の半角空白）
+			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0\u200e]", " "); //文字コードC2A0（UTF-8の半角空白）
 			line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
 			line = Regex.Replace(line ?? "", @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
 			line = Regex.Replace(line ?? "", @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン

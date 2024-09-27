@@ -36,8 +36,8 @@ namespace Arx.DocSearch.Util
 						string docText = CreateDocTextWithSpaces(wte.ParagraphTexts, out List<int> paragraphLengths);
 						//docText = TextConverter.ZenToHan(docText ?? "");
 						//docText = TextConverter.HankToZen(docText ?? "");
-						//sb.AppendLine($"docText:\n{wte.Text}");
-						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
+						if (isDebug) sb.AppendLine($"filePath:\n{filePath}\ndocText:\n{wte.Text}");
+							for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
 							string searchPattern = Regex.Replace(searchPatterns[i], @"^[0-9]+\.?\s+", "");
 							searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
@@ -49,6 +49,11 @@ namespace Arx.DocSearch.Util
 							//sb.AppendLine($"results.Count: {results.Count}");
 							if (results.Count > 0)
 							{
+								if (isDebug)
+								{
+									sb.AppendLine("エラー: 指定されたテキストが見つかりました。");
+									sb.AppendLine($"検索文: {searchPatterns[i]}\n{pattern}");
+								}
 								foreach (var result in results)
 								{
 									List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
@@ -63,6 +68,8 @@ namespace Arx.DocSearch.Util
 									highlightedText = TextConverter.HankToZen(highlightedText ?? "");
 									paragrapghText = TextConverter.ZenToHan(paragrapghText ?? "");
 									paragrapghText = TextConverter.HankToZen(paragrapghText ?? "");
+									highlightedText = Regex.Replace(highlightedText, @"F[0-9A-F]{3}|[<>]", @"");
+									matchedText = Regex.Replace(matchedText, @"F[0-9A-F]{3}|[<>]", @"");
 
 									if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 									{
@@ -140,7 +147,7 @@ namespace Arx.DocSearch.Util
 				escaped = Regex.Replace(escaped, @"(\\[,.:;()])|([,.:;()])", m =>
 				{
 					if (m.Groups[1].Success) // エスケープされた文字の場合
-						return @"(\s*" + m.Groups[1].Value + ")+";
+						return @"\s*" + m.Groups[1].Value;
 					else // エスケープされていない文字の場合
 						return m.Groups[2].Value;
 				});
@@ -329,14 +336,14 @@ namespace Arx.DocSearch.Util
 			int runStart = currentIndex;
 			int runEnd = runStart + runLength;
 
-			Console.WriteLine($"ProcessRun: run.InnerText='{run.InnerText}', calculatedLength={runLength}, currentIndex={currentIndex}, startIndex={startIndex}, endIndex={endIndex}");
+			//Console.WriteLine($"ProcessRun: run.InnerText='{run.InnerText}', calculatedLength={runLength}, currentIndex={currentIndex}, startIndex={startIndex}, endIndex={endIndex}");
 
 			if (runEnd > startIndex && runStart < endIndex)
 			{
 				int colorStart = Math.Max(0, startIndex - runStart);
 				int colorEnd = Math.Min(runLength, endIndex - runStart);
 
-				Console.WriteLine($"Color range: colorStart={colorStart}, colorEnd={colorEnd}");
+				//Console.WriteLine($"Color range: colorStart={colorStart}, colorEnd={colorEnd}");
 
 				if (colorStart > 0)
 				{
