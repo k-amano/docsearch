@@ -37,7 +37,7 @@ namespace Arx.DocSearch.Util
 						//docText = TextConverter.ZenToHan(docText ?? "");
 						//docText = TextConverter.HankToZen(docText ?? "");
 						if (isDebug) sb.AppendLine($"filePath:\n{filePath}\ndocText:\n{wte.Text}");
-							for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
+						for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
 						{
 							string searchPattern = Regex.Replace(searchPatterns[i], @"^[0-9]+\.?\s+", "");
 							searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
@@ -57,20 +57,19 @@ namespace Arx.DocSearch.Util
 								foreach (var result in results)
 								{
 									List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
-
 									string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
-									string[] ret = HighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, sb, isDebug);
+									matchedText = Regex.Replace(matchedText, @"F[0-9A-F]{3}|[<>]", @"");
+									string[] ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, false);
 									string highlightedText = ret[0];
 									string paragrapghText = ret[1];
+									int? offset = StringOffsetCalculator.CalculateOffset(highlightedText, matchedText);
+									if (offset != null)
+									{
+										ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex + offset.Value, result.endIndex + offset.Value, true);
+										highlightedText = ret[0];
+										paragrapghText = ret[1];
+									}
 									bool colorMatched = true;
-									//sb.AppendLine($"paragrapghText:\n{paragrapghText}");
-									highlightedText = TextConverter.ZenToHan(highlightedText ?? "");
-									highlightedText = TextConverter.HankToZen(highlightedText ?? "");
-									paragrapghText = TextConverter.ZenToHan(paragrapghText ?? "");
-									paragrapghText = TextConverter.HankToZen(paragrapghText ?? "");
-									highlightedText = Regex.Replace(highlightedText, @"F[0-9A-F]{3}|[<>]", @"");
-									matchedText = Regex.Replace(matchedText, @"F[0-9A-F]{3}|[<>]", @"");
-
 									if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 									{
 										string text = matchedText;
@@ -181,7 +180,22 @@ namespace Arx.DocSearch.Util
 			return matcheParagraphs;
 		}
 
-		private string[] HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, StringBuilder sb, bool isDebug)
+		private string[] ExecuteHighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, bool isFinal)
+		{
+			string[] ret = HighlightMatch(rate, paragraphs, paragraphLengths, matchedParagraphs, beginIndex, endIndex, isFinal);
+			string highlightedText = ret[0];
+			string paragraphText = ret[1];
+			highlightedText = TextConverter.ZenToHan(highlightedText ?? "");
+			highlightedText = TextConverter.HankToZen(highlightedText ?? "");
+			paragraphText = TextConverter.ZenToHan(paragraphText ?? "");
+			paragraphText = TextConverter.HankToZen(paragraphText ?? "");
+			highlightedText = Regex.Replace(highlightedText, @"F[0-9A-F]{3}|[<>]", @"");
+			string[] ret2 = new string[3];
+			ret[0] = highlightedText;
+			ret[1] = paragraphText;
+			return ret;
+		}
+		private string[] HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, bool isFinal)
 		{
 			StringBuilder highlightedText = new StringBuilder();
 			StringBuilder paragraphText = new StringBuilder();
@@ -195,7 +209,6 @@ namespace Arx.DocSearch.Util
 				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
 				convertedParagraphText = SpecialCharConverter.ReplaceLine(convertedParagraphText);
 				paragraphText.Append(convertedParagraphText);
-				//if (isDebug) sb.AppendLine($"index: {index} pos: {pos} beginIndex: {beginIndex}\nconvertedParagraphText: {convertedParagraphText}\nparagraph.InnerText: {paragraph.InnerText}");
 
 				int startInParagraph = Math.Max(0, beginIndex - pos);
 				int endInParagraph = Math.Min(convertedParagraphText.Length, endIndex - pos + 1);
@@ -204,7 +217,7 @@ namespace Arx.DocSearch.Util
 				{
 					string matchedText = SafeSubstring(convertedParagraphText, startInParagraph, endInParagraph - startInParagraph);
 					highlightedText.Append(matchedText);
-					ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
+					if (isFinal) ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
 				}
 			}
 

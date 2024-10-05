@@ -240,7 +240,8 @@ namespace Arx.DocSearch.Util
 				return greekChar;
 			}
 
-			return c.ToString();
+			// 変換できない外字の場合、空白を返す
+			return ((int)c >= 0xF000 && (int)c <= 0xF0FF) ? " " : c.ToString();
 		}
 
 		public static string ConvertSymbolChar(string charValue)
@@ -251,6 +252,11 @@ namespace Arx.DocSearch.Util
 				{
 					return unicodeChar;
 				}
+			}
+			// 変換できない外字の場合、空白を返す
+			if (symbolCode >= 0xF000 && symbolCode <= 0xF0FF)
+			{
+				return " ";
 			}
 			return charValue;
 		}
@@ -342,12 +348,14 @@ namespace Arx.DocSearch.Util
 				{
 					foreach (char c in textElement.Text)
 					{
-						convertedText.Append(ConvertChar(c, isSymbolFont));
+						string converted = ConvertChar(c, isSymbolFont);
+						convertedText.Append(converted);
 					}
 				}
 				else if (runChild.LocalName == "sym")
 				{
-					convertedText.Append(ConvertSymbolElement(runChild));
+					string converted = ConvertSymbolElement(runChild);
+					convertedText.Append(converted);
 				}
 			}
 
@@ -362,7 +370,7 @@ namespace Arx.DocSearch.Util
 				string symbolChar = charAttribute.Value;
 				return ConvertSymbolChar(symbolChar);
 			}
-			return string.Empty;
+			return " "; // 変換できない場合は空白を返す
 		}
 
 		public static string ReplaceLine(string line)
