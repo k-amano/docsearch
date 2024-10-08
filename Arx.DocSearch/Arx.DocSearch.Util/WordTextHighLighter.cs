@@ -63,27 +63,23 @@ namespace Arx.DocSearch.Util
 									string highlightedText = ret[0];
 									string paragrapghText = ret[1];
 									int? offset = StringOffsetCalculator.CalculateOffset(highlightedText, matchedText);
+									if (isDebug && offset != 0) sb.AppendLine($"offset: {offset}\nhighlightedText: {highlightedText}\nmatchedText: {matchedText}");
 									if (offset != null)
 									{
-										ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex + offset.Value, result.endIndex + offset.Value, true);
+										string textNoSymbol = SpecialCharConverter.ReplaceMathSymbols(matchedText);
+										int lengthDiff = matchedText.Length - textNoSymbol.Length;
+										ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex + offset.Value, result.endIndex + offset.Value - lengthDiff, true);
 										highlightedText = ret[0];
 										paragrapghText = ret[1];
 									}
 									bool colorMatched = true;
 									if (!CompareStringsIgnoringWhitespace(highlightedText, matchedText))
 									{
-										string text = matchedText;
-										if (50 < matchedText.Length) text = matchedText.Substring(0, 50);
-										int index = paragrapghText.IndexOf(text);
-										if (index < 0)
-										{
-											sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
-											sb.AppendLine($"検索テキスト: {matchedText}");
-											sb.AppendLine($"色付け箇所: {highlightedText}");
-											sb.AppendLine($"paragrapghText: {paragrapghText}");
-											colorMatched = false;
-										}
-
+										sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
+										sb.AppendLine($"検索テキスト: {matchedText}");
+										sb.AppendLine($"色付け箇所: {highlightedText}");
+										sb.AppendLine($"paragrapghText: {paragrapghText}");
+										colorMatched = false;
 									}
 									if (isDebug && colorMatched)
 									{
@@ -206,21 +202,18 @@ namespace Arx.DocSearch.Util
 				Paragraph paragraph = paragraphs[index];
 
 				// SpecialCharConverterを使用
-				string convertedParagraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
-				convertedParagraphText = SpecialCharConverter.ReplaceLine(convertedParagraphText);
-				paragraphText.Append(convertedParagraphText);
+				; paragraphText.Append(paragraph.InnerText);
 
 				int startInParagraph = Math.Max(0, beginIndex - pos);
-				int endInParagraph = Math.Min(convertedParagraphText.Length, endIndex - pos + 1);
+				int endInParagraph = Math.Min(paragraph.InnerText.Length, endIndex - pos + 1);
 
-				if (startInParagraph < convertedParagraphText.Length && endInParagraph > 0)
+				if (startInParagraph < paragraph.InnerText.Length && endInParagraph > 0)
 				{
-					string matchedText = SafeSubstring(convertedParagraphText, startInParagraph, endInParagraph - startInParagraph);
+					string matchedText = SafeSubstring(paragraph.InnerText, startInParagraph, endInParagraph - startInParagraph);
 					highlightedText.Append(matchedText);
 					if (isFinal) ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
 				}
 			}
-
 			string[] ret = new string[2];
 			ret[0] = highlightedText.ToString();
 			ret[1] = paragraphText.ToString();
@@ -488,11 +481,13 @@ namespace Arx.DocSearch.Util
 		{
 			// 正規表現を使用して全ての種類の空白を削除
 			string pattern = @"\s+";
-			string str1WithoutWhitespace = Regex.Replace(str1, pattern, "");
-			string str2WithoutWhitespace = Regex.Replace(str2, pattern, "");
-
+			string str1WithoutWhitespace = SpecialCharConverter.ReplaceMathSymbols(str1);
+			string str2WithoutWhitespace = SpecialCharConverter.ReplaceMathSymbols(str2);
+			str1WithoutWhitespace = Regex.Replace(str1WithoutWhitespace, pattern, "");
+			str2WithoutWhitespace = Regex.Replace(str2WithoutWhitespace, pattern, "");
 			// 空白を除去した文字列を比較
-			return str1WithoutWhitespace.Equals(str2WithoutWhitespace);
+			if (0 <= str1WithoutWhitespace.IndexOf(str2WithoutWhitespace) || 0 <= str2WithoutWhitespace.IndexOf(str1WithoutWhitespace)) return true;
+			else return false;
 		}
 
 		public List<(int beginIndex, int endIndex)> MatchIgnoringWhitespace(string pattern, string text, StringBuilder sb)

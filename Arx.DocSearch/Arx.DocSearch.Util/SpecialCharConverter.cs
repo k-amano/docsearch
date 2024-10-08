@@ -385,5 +385,24 @@ namespace Arx.DocSearch.Util
 			return line;
 		}
 
+		public static string ReplaceMathSymbols(string input)
+		{
+			// ギリシャ文字と数学記号のUnicode範囲
+			string pattern = @"[\u0370-\u03FF\u1F00-\u1FFF" +  // ギリシャ文字
+							  @"\u2100-\u214F" +               // 文字様記号
+							  @"\u2190-\u21FF" +               // 矢印
+							  @"\u2200-\u22FF" +               // 数学記号
+							  @"\u2300-\u23FF" +               // その他の技術記号
+							  @"\u25A0-\u25FF" +               // 幾何学模様
+							  @"\u2600-\u26FF" +               // その他の記号
+							  @"\u2700-\u27BF" +               // 装飾記号
+							  @"\u27C0-\u27EF" +               // その他の数学記号-A
+							  @"\u2980-\u29FF" +               // その他の数学記号-B
+							  @"\u2A00-\u2AFF" +               // 補助数学演算子
+							  @"\u2B00-\u2BFF]";               // その他の記号と矢印
+
+			return Regex.Replace(input, pattern, "");
+		}
+
 	}
 }

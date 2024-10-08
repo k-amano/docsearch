@@ -74,8 +74,10 @@ namespace Arx.DocSearch.Util
 
 		private static int IndexOfIgnoreWhitespace(string source, string target)
 		{
-			string sourceNoWhitespace = new string(source.Where(c => !char.IsWhiteSpace(c)).ToArray());
-			string targetNoWhitespace = new string(target.Where(c => !char.IsWhiteSpace(c)).ToArray());
+			string sourceNoSymbol = SpecialCharConverter.ReplaceMathSymbols(source);
+			string targetNoSymbol = SpecialCharConverter.ReplaceMathSymbols(target);
+			string sourceNoWhitespace = new string(sourceNoSymbol.Where(c => !char.IsWhiteSpace(c)).ToArray());
+			string targetNoWhitespace = new string(targetNoSymbol.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
 			int index = sourceNoWhitespace.IndexOf(targetNoWhitespace);
 			if (index == -1) return -1;
@@ -83,7 +85,7 @@ namespace Arx.DocSearch.Util
 			int originalIndex = 0;
 			int noWhitespaceIndex = 0;
 
-			while (noWhitespaceIndex < index)
+			while (noWhitespaceIndex <= index) // '<' を '<=' に変更
 			{
 				if (!char.IsWhiteSpace(source[originalIndex]))
 				{
@@ -92,7 +94,7 @@ namespace Arx.DocSearch.Util
 				originalIndex++;
 			}
 
-			return originalIndex;
+			return originalIndex - 1; // '-1' を追加
 		}
 	}
 }
