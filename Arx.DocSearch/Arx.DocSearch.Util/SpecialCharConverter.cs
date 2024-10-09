@@ -404,5 +404,16 @@ namespace Arx.DocSearch.Util
 			return Regex.Replace(input, pattern, "");
 		}
 
+		static public string RemoveSymbols(string input)
+		{
+			// 半角記号を削除するための正規表現パターン
+			string pattern = @"[!""#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]";
+
+			// 正規表現を使用して半角記号を空文字に置換
+			string result = Regex.Replace(input, pattern, "");
+
+			return result;
+		}
+
 	}
 }

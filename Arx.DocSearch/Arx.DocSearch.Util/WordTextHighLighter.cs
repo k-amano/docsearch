@@ -483,9 +483,14 @@ namespace Arx.DocSearch.Util
 			string pattern = @"\s+";
 			string str1WithoutWhitespace = SpecialCharConverter.ReplaceMathSymbols(str1);
 			string str2WithoutWhitespace = SpecialCharConverter.ReplaceMathSymbols(str2);
+			str1WithoutWhitespace = SpecialCharConverter.ReplaceLine(str1WithoutWhitespace ?? "");
+			str2WithoutWhitespace = SpecialCharConverter.ReplaceLine(str2WithoutWhitespace ?? "");
+			str1WithoutWhitespace = SpecialCharConverter.RemoveSymbols(str1WithoutWhitespace ?? "");
+			str2WithoutWhitespace = SpecialCharConverter.RemoveSymbols(str2WithoutWhitespace ?? "");
 			str1WithoutWhitespace = Regex.Replace(str1WithoutWhitespace, pattern, "");
 			str2WithoutWhitespace = Regex.Replace(str2WithoutWhitespace, pattern, "");
-			// 空白を除去した文字列を比較
+
+			// 空白、記号を除去した文字列を比較
 			if (0 <= str1WithoutWhitespace.IndexOf(str2WithoutWhitespace) || 0 <= str2WithoutWhitespace.IndexOf(str1WithoutWhitespace)) return true;
 			else return false;
 		}

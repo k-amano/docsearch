@@ -76,9 +76,12 @@ namespace Arx.DocSearch.Util
 		{
 			string sourceNoSymbol = SpecialCharConverter.ReplaceMathSymbols(source);
 			string targetNoSymbol = SpecialCharConverter.ReplaceMathSymbols(target);
+			sourceNoSymbol = SpecialCharConverter.ReplaceLine(sourceNoSymbol ?? "");
+			targetNoSymbol = SpecialCharConverter.ReplaceLine(targetNoSymbol ?? "");
+			sourceNoSymbol = SpecialCharConverter.RemoveSymbols(sourceNoSymbol ?? "");
+			targetNoSymbol = SpecialCharConverter.RemoveSymbols(targetNoSymbol ?? "");
 			string sourceNoWhitespace = new string(sourceNoSymbol.Where(c => !char.IsWhiteSpace(c)).ToArray());
 			string targetNoWhitespace = new string(targetNoSymbol.Where(c => !char.IsWhiteSpace(c)).ToArray());
-
 			int index = sourceNoWhitespace.IndexOf(targetNoWhitespace);
 			if (index == -1) return -1;
 
