@@ -1,15 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Color = System.Drawing.Color;
-using Microsoft.International.Converters;
 
 namespace Arx.DocSearch.Util
 {
@@ -18,6 +16,7 @@ namespace Arx.DocSearch.Util
 		public string HighlightTextInWord(string filePath, int[] indexes, double[] rates, string[] searchPatterns, bool isDebug = false)
 		{
 			StringBuilder sb = new StringBuilder();
+			CleanDocument(filePath, filePath);
 			WordTextExtractor wte = new WordTextExtractor(filePath, true, false);
 			try
 			{
@@ -57,15 +56,19 @@ namespace Arx.DocSearch.Util
 								foreach (var result in results)
 								{
 									List<int[]> matchedParagraphs = GetMatchedParagraphs(result.beginIndex, result.endIndex, paragraphLengths, docText, sb);
-									string matchedText = docText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
+									//色付け処理の位置を確認するための予備検索。検索もれを防ぐために50文字余分に検索する。
+									string matchedText = SafeSubstring(docText, result.beginIndex, result.endIndex - result.beginIndex + 51);
 									matchedText = Regex.Replace(matchedText, @"F[0-9A-F]{3}|[<>]", @"");
-									string[] ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex, false);
+									//色付け処理の位置を確認するための予備検索。検索もれを防ぐために50文字余分に検索する。
+									string[] ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex, result.endIndex + 50, false);
 									string highlightedText = ret[0];
 									string paragrapghText = ret[1];
 									int? offset = StringOffsetCalculator.CalculateOffset(highlightedText, matchedText);
 									if (isDebug && offset != 0) sb.AppendLine($"offset: {offset}\nhighlightedText: {highlightedText}\nmatchedText: {matchedText}");
 									if (offset != null)
 									{
+										matchedText = SafeSubstring(docText, result.beginIndex, result.endIndex - result.beginIndex + 1);
+										matchedText = Regex.Replace(matchedText, @"F[0-9A-F]{3}|[<>]", @"");
 										string textNoSymbol = SpecialCharConverter.ReplaceMathSymbols(matchedText);
 										int lengthDiff = matchedText.Length - textNoSymbol.Length;
 										ret = ExecuteHighlightMatch(rates[i], paragraphs, paragraphLengths, matchedParagraphs, result.beginIndex + offset.Value, result.endIndex + offset.Value - lengthDiff, true);
@@ -249,23 +252,32 @@ namespace Arx.DocSearch.Util
 		private void ApplyBackgroundColor(double rate, Run run)
 		{
 			Color color = GetHighlightColor(rate);
-			RunProperties runProperties = run.RunProperties;
-			if (runProperties == null)
+
+			// RunPropertiesの作成を明示的に行う
+			if (run.RunProperties == null)
 			{
-				runProperties = new RunProperties();
-				run.PrependChild(runProperties);
+				run.RunProperties = new RunProperties();
 			}
 
-			Shading shading = runProperties.Shading;
-			if (shading == null)
+			// 既存のShadingを削除して新しく作成
+			var existingShading = run.RunProperties.GetFirstChild<Shading>();
+			if (existingShading != null)
 			{
-				shading = new Shading();
-				runProperties.AppendChild(shading);
+				existingShading.Remove();
 			}
 
-			shading.Fill = $"{color.R:X2}{color.G:X2}{color.B:X2}";
-			shading.Color = "auto";
-			shading.Val = ShadingPatternValues.Clear;
+			// 新しいShadingを作成して設定
+			Shading shading = new Shading()
+			{
+				Fill = $"{color.R:X2}{color.G:X2}{color.B:X2}",
+				Color = "auto",
+				Val = ShadingPatternValues.Clear
+			};
+
+			// RunPropertiesの先頭に追加
+			run.RunProperties.InsertAt(shading, 0);
+
+			//Console.WriteLine($"Debug - Applied color {color.R:X2}{color.G:X2}{color.B:X2} to text: {run.InnerText}");
 		}
 
 		private void ApplyBackgroundColorToParagraph(Paragraph paragraph, double rate, int startIndex, int endIndex)
@@ -274,6 +286,7 @@ namespace Arx.DocSearch.Util
 			List<(int start, int end, OpenXmlElement element)> elementRanges = new List<(int, int, OpenXmlElement)>();
 			int currentIndex = 0;
 
+			// 各Runの範囲を記録
 			foreach (var element in paragraph.Elements())
 			{
 				int elementLength = element.InnerText.Length;
@@ -287,14 +300,40 @@ namespace Arx.DocSearch.Util
 			{
 				if (element is Run run)
 				{
-					ProcessRunWithGlobalIndices(run, rate, elemStart, elemEnd, startIndex, endIndex, newElements);
+					// Runの範囲と色付け範囲が重なっているか確認
+					if (DoRangesOverlap(elemStart, elemEnd - 1, startIndex, endIndex))
+					{
+						// 色付けが必要な部分の開始と終了位置を計算
+						int colorStart = Math.Max(0, startIndex - elemStart);
+						int colorEnd = Math.Min(run.InnerText.Length, endIndex - elemStart + 1);
+
+						if (colorStart == 0 && colorEnd == run.InnerText.Length)
+						{
+							// Runの全体を色付け
+							Run newRun = (Run)run.CloneNode(true);
+							ApplyBackgroundColor(rate, newRun);
+							newElements.Add(newRun);
+						}
+						else
+						{
+							// Runを分割して必要な部分のみ色付け
+							SplitAndColorRun(run, colorStart, colorEnd, rate, newElements);
+						}
+					}
+					else
+					{
+						// 色付け範囲外のRunはそのままコピー
+						newElements.Add((Run)run.CloneNode(true));
+					}
 				}
 				else
 				{
-					newElements.Add(element.Clone() as OpenXmlElement);
+					// Run以外の要素はそのままコピー
+					newElements.Add(element.CloneNode(true));
 				}
 			}
 
+			// 古い要素を削除して新しい要素を追加
 			paragraph.RemoveAllChildren();
 			foreach (var newElement in newElements)
 			{
@@ -302,130 +341,48 @@ namespace Arx.DocSearch.Util
 			}
 		}
 
-		private void ProcessRunWithGlobalIndices(Run run, double rate, int runStart, int runEnd, int startIndex, int endIndex, List<OpenXmlElement> newElements)
+		private bool DoRangesOverlap(int start1, int end1, int start2, int end2)
 		{
-			string runText = run.InnerText;
-			int runLength = runText.Length;
+			return start1 <= end2 && start2 <= end1;
+		}
 
-			if (runEnd <= startIndex || runStart >= endIndex)
-			{
-				newElements.Add(run.Clone() as Run);
-				return;
-			}
-
-			int colorStart = Math.Max(0, startIndex - runStart);
-			int colorEnd = Math.Min(runLength, endIndex - runStart);
-
+		private void SplitAndColorRun(Run originalRun, int colorStart, int colorEnd, double rate, List<OpenXmlElement> newElements)
+		{
+			// 色付け前の部分
 			if (colorStart > 0)
 			{
-				Run beforeRun = CreateNewRun(run, runText.Substring(0, colorStart));
+				Run beforeRun = new Run();
+				CopyRunProperties(originalRun, beforeRun);
+				beforeRun.AppendChild(new Text(originalRun.InnerText.Substring(0, colorStart)));
 				newElements.Add(beforeRun);
 			}
 
-			if (colorEnd > colorStart)
-			{
-				Run coloredRun = CreateNewRun(run, runText.Substring(colorStart, colorEnd - colorStart));
-				ApplyBackgroundColor(rate, coloredRun);
-				newElements.Add(coloredRun);
-			}
+			// 色付け部分
+			Run coloredRun = new Run();
+			CopyRunProperties(originalRun, coloredRun);
+			coloredRun.AppendChild(new Text(originalRun.InnerText.Substring(colorStart, colorEnd - colorStart)));
+			ApplyBackgroundColor(rate, coloredRun);
+			newElements.Add(coloredRun);
 
-			if (colorEnd < runLength)
+			// 色付け後の部分
+			if (colorEnd < originalRun.InnerText.Length)
 			{
-				Run afterRun = CreateNewRun(run, runText.Substring(colorEnd));
+				Run afterRun = new Run();
+				CopyRunProperties(originalRun, afterRun);
+				afterRun.AppendChild(new Text(originalRun.InnerText.Substring(colorEnd)));
 				newElements.Add(afterRun);
 			}
 		}
 
-		private void ProcessRun(Run run, double rate, ref int currentIndex, int startIndex, int endIndex, List<OpenXmlElement> newElements)
+		private void CopyRunProperties(Run sourceRun, Run targetRun)
 		{
-			int runLength = CalculateRunLength(run);
-			int runStart = currentIndex;
-			int runEnd = runStart + runLength;
-
-			//Console.WriteLine($"ProcessRun: run.InnerText='{run.InnerText}', calculatedLength={runLength}, currentIndex={currentIndex}, startIndex={startIndex}, endIndex={endIndex}");
-
-			if (runEnd > startIndex && runStart < endIndex)
+			if (sourceRun.RunProperties != null)
 			{
-				int colorStart = Math.Max(0, startIndex - runStart);
-				int colorEnd = Math.Min(runLength, endIndex - runStart);
-
-				//Console.WriteLine($"Color range: colorStart={colorStart}, colorEnd={colorEnd}");
-
-				if (colorStart > 0)
-				{
-					Run beforeRun = CreateNewRun(run, GetSubRunText(run, 0, colorStart));
-					newElements.Add(beforeRun);
-				}
-
-				Run coloredRun = CreateNewRun(run, GetSubRunText(run, colorStart, colorEnd));
-				ApplyBackgroundColor(rate, coloredRun);
-				newElements.Add(coloredRun);
-
-				if (colorEnd < runLength)
-				{
-					Run afterRun = CreateNewRun(run, GetSubRunText(run, colorEnd, runLength));
-					newElements.Add(afterRun);
-				}
+				targetRun.RunProperties = (RunProperties)sourceRun.RunProperties.CloneNode(true);
 			}
-			else
-			{
-				newElements.Add(CreateNewRun(run, run.InnerText));
-			}
-
-			currentIndex += runLength;
-			Console.WriteLine($"ProcessRun completed: currentIndex={currentIndex}");
 		}
 
-		private int CalculateRunLength(Run run)
-		{
-			int length = 0;
-			foreach (var child in run.ChildElements)
-			{
-				if (child is Text text)
-				{
-					length += text.Text.Length;
-				}
-				else if (child.LocalName == "sym")
-				{
-					length += 1; // シンボル要素は1文字としてカウント
-				}
-			}
-			return length;
-		}
-
-		private string GetSubRunText(Run run, int start, int end)
-		{
-			StringBuilder sb = new StringBuilder();
-			int currentIndex = 0;
-
-			foreach (var child in run.ChildElements)
-			{
-				if (child is Text text)
-				{
-					int textLength = text.Text.Length;
-					if (currentIndex + textLength > start && currentIndex < end)
-					{
-						int subStart = Math.Max(0, start - currentIndex);
-						int subEnd = Math.Min(textLength, end - currentIndex);
-						sb.Append(text.Text.Substring(subStart, subEnd - subStart));
-					}
-					currentIndex += textLength;
-				}
-				else if (child.LocalName == "sym")
-				{
-					if (currentIndex >= start && currentIndex < end)
-					{
-						sb.Append(GetSymbolChar(child));
-					}
-					currentIndex += 1;
-				}
-
-				if (currentIndex >= end) break;
-			}
-
-			return sb.ToString();
-		}
-
+		/*
 		private string GetSymbolChar(OpenXmlElement symbolElement)
 		{
 			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
@@ -436,38 +393,53 @@ namespace Arx.DocSearch.Util
 			return "";
 		}
 
-		private Run CreateNewRun(Run originalRun, string text)
+		private Run CreateNewRun(Run originalRun, int startIndex, int endIndex)
 		{
 			Run newRun = new Run();
-			CopyRunProperties(originalRun, newRun);
 
-			foreach (var child in originalRun.ChildElements)
+			// RunPropertiesのコピー（特にフォント情報が重要）
+			if (originalRun.RunProperties != null)
 			{
-				if (child is Text)
+				newRun.RunProperties = (RunProperties)originalRun.RunProperties.CloneNode(true);
+			}
+
+			int currentIndex = 0;
+			foreach (var element in originalRun.Elements())
+			{
+				if (currentIndex >= endIndex) break;
+
+				// RunPropertiesは既にコピー済みなのでスキップ
+				if (element is RunProperties) continue;
+
+				if (element is Text textElement)
 				{
-					newRun.AppendChild(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+					string text = textElement.Text;
+					int elementStart = Math.Max(0, startIndex - currentIndex);
+					int elementEnd = Math.Min(text.Length, endIndex - currentIndex);
+
+					if (elementStart < elementEnd)
+					{
+						string newText = text.Substring(elementStart, elementEnd - elementStart);
+						newRun.AppendChild(new Text(newText)
+						{
+							Space = textElement.Space
+						});
+					}
+					currentIndex += text.Length;
 				}
-				else if (child.LocalName == "sym")
+				else if (element is SymbolChar symbolElement)
 				{
-					var symElement = (OpenXmlElement)child.Clone();
-					newRun.AppendChild(symElement);
-				}
-				else
-				{
-					newRun.AppendChild((OpenXmlElement)child.Clone());
+					// SymbolCharは1文字として扱い、範囲内にある場合はそのままコピー
+					if (currentIndex >= startIndex && currentIndex < endIndex)
+					{
+						newRun.AppendChild((SymbolChar)symbolElement.CloneNode(true));
+					}
+					currentIndex += 1; // SymbolCharは1文字分としてカウント
 				}
 			}
 
 			return newRun;
-		}
-
-		private void CopyRunProperties(Run sourceRun, Run targetRun)
-		{
-			if (sourceRun.RunProperties != null)
-			{
-				targetRun.RunProperties = (RunProperties)sourceRun.RunProperties.Clone();
-			}
-		}
+		}*/
 
 		private Color GetHighlightColor(double rate)
 		{
@@ -534,6 +506,7 @@ namespace Arx.DocSearch.Util
 			}
 		}
 
+		/*
 		private void ProcessMathElement(OpenXmlElement mathElement, double rate, ref int currentIndex, int startIndex, int endIndex, List<OpenXmlElement> newElements)
 		{
 			string mathText = ExtractTextFromMathElement(mathElement);
@@ -553,7 +526,7 @@ namespace Arx.DocSearch.Util
 			}
 
 			currentIndex += mathLength;
-		}
+		}*/
 
 		private string ExtractTextFromMathElement(OpenXmlElement mathElement)
 		{
@@ -601,6 +574,169 @@ namespace Arx.DocSearch.Util
 				{
 					ColorMathElementRecursive(child, rate, startIndex - currentIndex, endIndex - currentIndex);
 					currentIndex += child.InnerText.Length;
+				}
+			}
+		}
+
+		public static void CleanDocument(string inputFilePath, string outputFilePath)
+		{
+			try
+			{
+				if (inputFilePath == outputFilePath)
+				{
+					// 同じファイルの場合、直接編集
+					using (WordprocessingDocument doc = WordprocessingDocument.Open(inputFilePath, true))
+					{
+						CleanDocumentContent(doc);
+						doc.Save();
+					}
+				}
+				else
+				{
+					// 新しいファイルとして保存する場合
+					File.Copy(inputFilePath, outputFilePath, true);
+					using (WordprocessingDocument doc = WordprocessingDocument.Open(outputFilePath, true))
+					{
+						CleanDocumentContent(doc);
+						doc.Save();
+					}
+				}
+				//Console.WriteLine("Document cleaned successfully.");
+			}
+			catch (Exception ex)
+			{
+				//Console.WriteLine($"An error occurred: {ex.Message}");
+			}
+		}
+
+		private static void CleanDocumentContent(WordprocessingDocument doc)
+		{
+			RemoveFieldCodesInDocument(doc);
+			ClearBackgroundAndHighlight(doc);
+		}
+
+		private static void RemoveFieldCodesInDocument(WordprocessingDocument doc)
+		{
+			var body = doc.MainDocumentPart.Document.Body;
+			if (body != null)
+			{
+				RemoveFieldCodesInElement(body);
+			}
+
+			// ヘッダーとフッターも処理
+			var headerParts = doc.MainDocumentPart.HeaderParts;
+			foreach (var headerPart in headerParts)
+			{
+				RemoveFieldCodesInElement(headerPart.Header);
+			}
+
+			var footerParts = doc.MainDocumentPart.FooterParts;
+			foreach (var footerPart in footerParts)
+			{
+				RemoveFieldCodesInElement(footerPart.Footer);
+			}
+		}
+
+		private static void RemoveFieldCodesInElement(OpenXmlElement element)
+		{
+			var runs = element.Descendants<Run>().ToList();
+			foreach (var run in runs)
+			{
+				var fieldChar = run.Elements<FieldChar>().FirstOrDefault();
+				if (fieldChar != null && fieldChar.FieldCharType == FieldCharValues.Begin)
+				{
+					var fieldCode = run.NextSibling<Run>()?.GetFirstChild<FieldCode>();
+					if (fieldCode != null)
+					{
+						string fieldCodeText = fieldCode.InnerText;
+						var nextRun = run.NextSibling<Run>();
+						while (nextRun != null)
+						{
+							var endFieldChar = nextRun.Elements<FieldChar>().FirstOrDefault(fc => fc.FieldCharType == FieldCharValues.End);
+							if (endFieldChar != null)
+							{
+								break;
+							}
+							nextRun = nextRun.NextSibling<Run>();
+						}
+						if (nextRun != null)
+						{
+							// フィールドの結果を保持
+							string result = GetFieldResult(run, nextRun);
+							run.RemoveAllChildren();
+							run.AppendChild(new Text(result));
+
+							// フィールドコードの残りの部分を削除
+							while (run.NextSibling<Run>() != nextRun)
+							{
+								run.NextSibling<Run>().Remove();
+							}
+							nextRun.Remove();
+						}
+					}
+				}
+			}
+		}
+
+		private static string GetFieldResult(Run startRun, Run endRun)
+		{
+			string result = "";
+			var currentRun = startRun.NextSibling<Run>();
+			while (currentRun != null && currentRun != endRun)
+			{
+				var text = currentRun.GetFirstChild<Text>();
+				if (text != null)
+				{
+					result += text.Text;
+				}
+				currentRun = currentRun.NextSibling<Run>();
+			}
+			return result.Trim();
+		}
+
+		private static void ClearBackgroundAndHighlight(WordprocessingDocument doc)
+		{
+			var body = doc.MainDocumentPart.Document.Body;
+			if (body != null)
+			{
+				ClearBackgroundAndHighlightInElement(body);
+			}
+
+			// ヘッダーとフッターも処理
+			var headerParts = doc.MainDocumentPart.HeaderParts;
+			foreach (var headerPart in headerParts)
+			{
+				ClearBackgroundAndHighlightInElement(headerPart.Header);
+			}
+
+			var footerParts = doc.MainDocumentPart.FooterParts;
+			foreach (var footerPart in footerParts)
+			{
+				ClearBackgroundAndHighlightInElement(footerPart.Footer);
+			}
+		}
+
+		private static void ClearBackgroundAndHighlightInElement(OpenXmlElement element)
+		{
+			var runs = element.Descendants<Run>().ToList();
+			foreach (var run in runs)
+			{
+				var runProperties = run.RunProperties;
+				if (runProperties != null)
+				{
+					// 背景色をクリア
+					var shading = runProperties.GetFirstChild<Shading>();
+					if (shading != null)
+					{
+						shading.Remove();
+					}
+
+					// ハイライトをクリア
+					var highlight = runProperties.GetFirstChild<Highlight>();
+					if (highlight != null)
+					{
+						highlight.Remove();
+					}
 				}
 			}
 		}

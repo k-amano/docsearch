@@ -414,6 +414,10 @@ namespace Arx.DocSearch.Util
 
 			return result;
 		}
+		public static bool IsSpecialChar(char c)
+		{
+			return GreekCharMap.ContainsKey(c) || SymbolUnicodeMap.ContainsKey((int)c);
+		}
 
 	}
 }
