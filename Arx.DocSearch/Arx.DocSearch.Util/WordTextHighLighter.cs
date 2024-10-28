@@ -164,9 +164,13 @@ namespace Arx.DocSearch.Util
 			for (int i = 0; i < paragraphLengths.Count; i++)
 			{
 				int paragraphLength = paragraphLengths[i];
-				if (index <= beginIndex && beginIndex <= index + paragraphLength
-				|| beginIndex < index && index + paragraphLength < endIndex
-				|| index <= endIndex && endIndex <= index + paragraphLength)
+				// 段落の末尾を含む場合、または段落の開始位置を含む場合、
+				// または段落が検索範囲内にある場合に追加
+				if ((index <= beginIndex && beginIndex <= index + paragraphLength) ||
+					(beginIndex < index && index + paragraphLength < endIndex) ||
+					(index <= endIndex && endIndex <= index + paragraphLength) ||
+					// 以下の条件を追加
+					(beginIndex < index && index < endIndex))
 				{
 					int[] info = new int[2];
 					info[0] = i;
@@ -194,6 +198,7 @@ namespace Arx.DocSearch.Util
 			ret[1] = paragraphText;
 			return ret;
 		}
+
 		private string[] HighlightMatch(double rate, List<Paragraph> paragraphs, List<int> paragraphLengths, List<int[]> matchedParagraphs, int beginIndex, int endIndex, bool isFinal)
 		{
 			StringBuilder highlightedText = new StringBuilder();
@@ -203,18 +208,37 @@ namespace Arx.DocSearch.Util
 				int index = matchedParagraph[0];
 				int pos = matchedParagraph[1];
 				Paragraph paragraph = paragraphs[index];
+				int paragraphLength = paragraph.InnerText.Length;
 
-				// SpecialCharConverterを使用
-				; paragraphText.Append(paragraph.InnerText);
+				// パラグラフ内での相対位置を計算
+				int relativeStart = beginIndex - pos;
+				int relativeEnd = endIndex - pos;
 
-				int startInParagraph = Math.Max(0, beginIndex - pos);
-				int endInParagraph = Math.Min(paragraph.InnerText.Length, endIndex - pos + 1);
-
-				if (startInParagraph < paragraph.InnerText.Length && endInParagraph > 0)
+				// パラグラフの境界をまたぐ場合の処理
+				// 前のパラグラフの末尾部分
+				if (relativeStart >= paragraphLength && relativeEnd > paragraphLength)
 				{
-					string matchedText = SafeSubstring(paragraph.InnerText, startInParagraph, endInParagraph - startInParagraph);
-					highlightedText.Append(matchedText);
-					if (isFinal) ApplyBackgroundColorToParagraph(paragraph, rate, startInParagraph, endInParagraph);
+					relativeStart = Math.Max(0, paragraphLength - 3);
+					relativeEnd = paragraphLength;
+				}
+				// 次のパラグラフの先頭部分
+				else if (relativeStart < 0 && relativeEnd > 0)
+				{
+					relativeStart = 0;
+					relativeEnd = Math.Min(paragraphLength, relativeEnd);
+				}
+
+				if (relativeEnd > 0 && relativeStart < paragraphLength)
+				{
+					int effectiveStart = Math.Max(0, relativeStart);
+					int effectiveEnd = Math.Min(paragraphLength, relativeEnd);
+
+					if (effectiveStart < effectiveEnd)
+					{
+						string matchedText = SafeSubstring(paragraph.InnerText, effectiveStart, effectiveEnd - effectiveStart);
+						highlightedText.Append(matchedText);
+						if (isFinal) ApplyBackgroundColorToParagraph(paragraph, rate, effectiveStart, effectiveEnd);
+					}
 				}
 			}
 			string[] ret = new string[2];
@@ -285,7 +309,6 @@ namespace Arx.DocSearch.Util
 			string paragraphText = paragraph.InnerText;
 			List<(int start, int end, OpenXmlElement element)> elementRanges = new List<(int, int, OpenXmlElement)>();
 			int currentIndex = 0;
-
 			// 各Runの範囲を記録
 			foreach (var element in paragraph.Elements())
 			{
@@ -293,42 +316,50 @@ namespace Arx.DocSearch.Util
 				elementRanges.Add((currentIndex, currentIndex + elementLength, element));
 				currentIndex += elementLength;
 			}
-
 			List<OpenXmlElement> newElements = new List<OpenXmlElement>();
-
 			foreach (var (elemStart, elemEnd, element) in elementRanges)
 			{
 				if (element is Run run)
 				{
-					// Runの範囲と色付け範囲が重なっているか確認
+					// 既存のRun処理コード
 					if (DoRangesOverlap(elemStart, elemEnd - 1, startIndex, endIndex))
 					{
-						// 色付けが必要な部分の開始と終了位置を計算
 						int colorStart = Math.Max(0, startIndex - elemStart);
 						int colorEnd = Math.Min(run.InnerText.Length, endIndex - elemStart + 1);
 
 						if (colorStart == 0 && colorEnd == run.InnerText.Length)
 						{
-							// Runの全体を色付け
 							Run newRun = (Run)run.CloneNode(true);
 							ApplyBackgroundColor(rate, newRun);
 							newElements.Add(newRun);
 						}
 						else
 						{
-							// Runを分割して必要な部分のみ色付け
 							SplitAndColorRun(run, colorStart, colorEnd, rate, newElements);
 						}
 					}
 					else
 					{
-						// 色付け範囲外のRunはそのままコピー
 						newElements.Add((Run)run.CloneNode(true));
+					}
+				}
+				else if (element is DocumentFormat.OpenXml.Math.OfficeMath officeMath)
+				{
+					if (DoRangesOverlap(elemStart, elemEnd - 1, startIndex, endIndex))
+					{
+						// OfficeMath要素全体をRunに変換して色付け
+						Run newRun = new Run();
+						newRun.AppendChild(new Text(officeMath.InnerText));
+						ApplyBackgroundColor(rate, newRun);
+						newElements.Add(newRun);
+					}
+					else
+					{
+						newElements.Add(element.CloneNode(true));
 					}
 				}
 				else
 				{
-					// Run以外の要素はそのままコピー
 					newElements.Add(element.CloneNode(true));
 				}
 			}
@@ -343,7 +374,8 @@ namespace Arx.DocSearch.Util
 
 		private bool DoRangesOverlap(int start1, int end1, int start2, int end2)
 		{
-			return start1 <= end2 && start2 <= end1;
+			bool overlaps = start1 <= end2 && start2 <= end1;
+			return overlaps;
 		}
 
 		private void SplitAndColorRun(Run originalRun, int colorStart, int colorEnd, double rate, List<OpenXmlElement> newElements)
@@ -381,65 +413,6 @@ namespace Arx.DocSearch.Util
 				targetRun.RunProperties = (RunProperties)sourceRun.RunProperties.CloneNode(true);
 			}
 		}
-
-		/*
-		private string GetSymbolChar(OpenXmlElement symbolElement)
-		{
-			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
-			if (charAttribute != null)
-			{
-				return SpecialCharConverter.ConvertSymbolChar(charAttribute.Value);
-			}
-			return "";
-		}
-
-		private Run CreateNewRun(Run originalRun, int startIndex, int endIndex)
-		{
-			Run newRun = new Run();
-
-			// RunPropertiesのコピー（特にフォント情報が重要）
-			if (originalRun.RunProperties != null)
-			{
-				newRun.RunProperties = (RunProperties)originalRun.RunProperties.CloneNode(true);
-			}
-
-			int currentIndex = 0;
-			foreach (var element in originalRun.Elements())
-			{
-				if (currentIndex >= endIndex) break;
-
-				// RunPropertiesは既にコピー済みなのでスキップ
-				if (element is RunProperties) continue;
-
-				if (element is Text textElement)
-				{
-					string text = textElement.Text;
-					int elementStart = Math.Max(0, startIndex - currentIndex);
-					int elementEnd = Math.Min(text.Length, endIndex - currentIndex);
-
-					if (elementStart < elementEnd)
-					{
-						string newText = text.Substring(elementStart, elementEnd - elementStart);
-						newRun.AppendChild(new Text(newText)
-						{
-							Space = textElement.Space
-						});
-					}
-					currentIndex += text.Length;
-				}
-				else if (element is SymbolChar symbolElement)
-				{
-					// SymbolCharは1文字として扱い、範囲内にある場合はそのままコピー
-					if (currentIndex >= startIndex && currentIndex < endIndex)
-					{
-						newRun.AppendChild((SymbolChar)symbolElement.CloneNode(true));
-					}
-					currentIndex += 1; // SymbolCharは1文字分としてカウント
-				}
-			}
-
-			return newRun;
-		}*/
 
 		private Color GetHighlightColor(double rate)
 		{
@@ -504,33 +477,6 @@ namespace Arx.DocSearch.Util
 				sb.AppendLine($"スタックトレース: {ex.StackTrace}");
 				return new List<(int beginIndex, int endIndex)>();
 			}
-		}
-
-		/*
-		private void ProcessMathElement(OpenXmlElement mathElement, double rate, ref int currentIndex, int startIndex, int endIndex, List<OpenXmlElement> newElements)
-		{
-			string mathText = ExtractTextFromMathElement(mathElement);
-			int mathLength = mathText.Length;
-			int mathStart = currentIndex;
-			int mathEnd = mathStart + mathLength;
-
-			if (mathEnd > startIndex && mathStart < endIndex)
-			{
-				var newMathElement = (OpenXmlElement)mathElement.Clone();
-				ColorMathElementRecursive(newMathElement, rate, startIndex - mathStart, endIndex - mathStart);
-				newElements.Add(newMathElement);
-			}
-			else
-			{
-				newElements.Add((OpenXmlElement)mathElement.Clone());
-			}
-
-			currentIndex += mathLength;
-		}*/
-
-		private string ExtractTextFromMathElement(OpenXmlElement mathElement)
-		{
-			return string.Join("", mathElement.Descendants<Text>().Select(t => t.Text));
 		}
 
 		private void ColorMathElementRecursive(OpenXmlElement element, double rate, int startIndex, int endIndex)
@@ -601,11 +547,9 @@ namespace Arx.DocSearch.Util
 						doc.Save();
 					}
 				}
-				//Console.WriteLine("Document cleaned successfully.");
 			}
 			catch (Exception ex)
 			{
-				//Console.WriteLine($"An error occurred: {ex.Message}");
 			}
 		}
 

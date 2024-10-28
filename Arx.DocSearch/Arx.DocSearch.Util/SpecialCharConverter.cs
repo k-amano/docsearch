@@ -164,24 +164,6 @@ namespace Arx.DocSearch.Util
 		{
 			string convertedText = ConvertSpecialCharactersInRun(run);
 			extractedText.Append(convertedText);
-			/*
-			bool isSymbolFont = IsSymbolFont(run);
-
-			foreach (var runChild in run.ChildElements)
-			{
-				if (runChild is Text textElement)
-				{
-					ProcessText(textElement.Text, isSymbolFont, depth + 1, extractedText);
-				}
-				else if (runChild.LocalName == "sym")
-				{
-					ProcessSymbol(runChild, depth + 1, extractedText);
-				}
-				else if (runChild is OpenXmlUnknownElement unknownElement)
-				{
-					ProcessUnknownElement(unknownElement, depth + 1, extractedText);
-				}
-			}*/
 		}
 
 		private static void ProcessText(string textContent, bool isSymbolFont, int depth, StringBuilder extractedText)
@@ -424,7 +406,6 @@ namespace Arx.DocSearch.Util
 
 			return result;
 		}
-
 		public static bool IsSpecialChar(char c)
 		{
 			return GreekCharMap.ContainsKey(c) || SymbolUnicodeMap.ContainsKey((int)c);
