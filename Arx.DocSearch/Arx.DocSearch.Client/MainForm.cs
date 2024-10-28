@@ -199,7 +199,7 @@ namespace Arx.DocSearch.Client
 			this.openFileDialog1.FileName = "";
 			//[ファイルの種類]に表示される選択肢を指定する
 			//指定しないとすべてのファイルが表示される
-			this.openFileDialog1.Filter = "Word文書(*.doc;*.docx)|*.doc;*.docx|pdf文書(*.pdf)|*.pdf|テキストファイル(*.txt)|*.txt|すべてのファイル(*.*)|*.*";
+			this.openFileDialog1.Filter = "Word文書(*.docx)|*.docx|pdf文書(*.pdf)|*.pdf|テキストファイル(*.txt)|*.txt|すべてのファイル(*.*)|*.*";
 			//タイトルを設定する
 			this.openFileDialog2.Title = "読み込むログファイルを選択してください";
 			//OpenFileDialog
@@ -314,6 +314,10 @@ namespace Arx.DocSearch.Client
 				{
 					MessageBox.Show("検索元が選択されていないか、存在しないファイルが含まれています。");
 					return;
+				}
+				else if (".doc".Equals(Path.GetExtension(srcFile).ToLower()))
+				{
+					MessageBox.Show("doc形式のファイルは使用できません。");
 				}
 			}
 			var task = Task.Factory.StartNew(() =>

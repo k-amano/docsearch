@@ -406,14 +406,25 @@ namespace Arx.DocSearch.Util
 
 		static public string RemoveSymbols(string input)
 		{
+			if (string.IsNullOrEmpty(input))
+				return input;
+
 			// 半角記号を削除するための正規表現パターン
 			string pattern = @"[!""#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]";
 
-			// 正規表現を使用して半角記号を空文字に置換
-			string result = Regex.Replace(input, pattern, "");
+			// UTF-8で表示できない文字を検出するための正規表現パターン
+			// \p{C}: 制御文字とプライベート用途文字
+			// \p{Cn}: 未割り当てのコードポイント
+			string invalidCharsPattern = @"[\p{C}\p{Cn}]";
+
+			// 正規表現を使用して半角記号とUTF-8で表示できない文字を空文字に置換
+			string result = input;
+			result = Regex.Replace(result, pattern, "");
+			result = Regex.Replace(result, invalidCharsPattern, "");
 
 			return result;
 		}
+
 		public static bool IsSpecialChar(char c)
 		{
 			return GreekCharMap.ContainsKey(c) || SymbolUnicodeMap.ContainsKey((int)c);
