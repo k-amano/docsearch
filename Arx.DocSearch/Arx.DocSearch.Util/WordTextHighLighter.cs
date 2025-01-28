@@ -18,18 +18,36 @@ namespace Arx.DocSearch.Util
             StringBuilder sb = new StringBuilder();
             CleanDocument(filePath, filePath);
             WordTextExtractor wte = new WordTextExtractor(filePath, true, false);
-            string pattern;  // 追加
+            string pattern;
 
             try
             {
                 using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, true))
                 {
-                    //HighlightMathFormula(doc, 3, Color.Pink);
                     Body body = doc.MainDocumentPart.Document.Body;
                     if (body != null)
                     {
                         var paragraphs = body.Descendants<Paragraph>().ToList();
                         if (isDebug) sb.AppendLine($"filePath:\n{filePath}\ndocText:\n{wte.Text}");
+
+                        // 全パラグラフのテキストを連結
+                        StringBuilder combinedDocText = new StringBuilder();
+                        List<(int start, int end, Paragraph paragraph)> paragraphRanges = new List<(int start, int end, Paragraph paragraph)>();
+                        int currentPosition = 0;
+
+                        foreach (var paragraph in paragraphs)
+                        {
+                            var (paragraphText, _) = CreateCombinedText(paragraph);
+                            if (!string.IsNullOrWhiteSpace(paragraphText))
+                            {
+                                paragraphRanges.Add((currentPosition, currentPosition + paragraphText.Length - 1, paragraph));
+                                combinedDocText.Append(paragraphText);
+                                currentPosition += paragraphText.Length;
+                            }
+                        }
+
+                        string fullDocText = combinedDocText.ToString();
+                        Console.WriteLine("fullDocText:\n" + fullDocText);
 
                         for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
                         {
@@ -38,69 +56,68 @@ namespace Arx.DocSearch.Util
                             string[] words = searchPattern.Split(' ');
                             if (searchPattern.Length < 20 && words.Length < 3) continue;
                             pattern = CreateSearchPattern(searchPattern);
-                            bool foundInAnyParagraph = false;  // 追加
+                            bool foundInDocument = false;
 
-                            foreach (var paragraph in paragraphs)
+                            var results = MatchIgnoringWhitespace(pattern, fullDocText, sb);
+
+                            if (results.Count > 0)
                             {
-                                var (combinedText, elementRanges) = CreateCombinedText(paragraph);
-                                //if (isDebug) sb.AppendLine($"combinedText: {combinedText}");
-
-                                var results = MatchIgnoringWhitespace(pattern, combinedText, sb);
-
-                                if (results.Count > 0)
+                                foundInDocument = true;
+                                if (isDebug)
                                 {
-                                    foundInAnyParagraph = true;  // 追加
-                                    if (isDebug)
-                                    {
-                                        sb.AppendLine("エラー: 指定されたテキストが見つかりました。");
-                                        sb.AppendLine($"検索文:searchPatterns[{i}] {searchPatterns[i]}\n{pattern}");
-                                    }
+                                    sb.AppendLine("エラー: 指定されたテキストが見つかりました。");
+                                    sb.AppendLine($"検索文:searchPatterns[{i}] {searchPatterns[i]}\n{pattern}");
+                                }
 
-                                    foreach (var result in results)
-                                    {
-                                        // マッチしたテキストを取得
-                                        string matchedText = SafeSubstring(combinedText, result.beginIndex, result.endIndex - result.beginIndex + 1);
-                                        matchedText = Regex.Replace(matchedText, @"F[0-9A-F]{3}|[<>]", @"");
+                                foreach (var result in results)
+                                {
+                                    // 該当する範囲に含まれるパラグラフを特定
+                                    var affectedParagraphs = paragraphRanges
+                                        .Where(p => DoRangesOverlap(result.beginIndex, result.endIndex, p.start, p.end))
+                                        .ToList();
 
-                                        // 一致範囲に含まれる要素を特定
+                                    foreach (var paragraphRange in affectedParagraphs)
+                                    {
+                                        var paragraph = paragraphRange.paragraph;
+                                        var (combinedText, elementRanges) = CreateCombinedText(paragraph);
+
+                                        // パラグラフ内での相対位置を計算
+                                        int relativeStart = Math.Max(0, result.beginIndex - paragraphRange.start);
+                                        int relativeEnd = Math.Min(combinedText.Length - 1, result.endIndex - paragraphRange.start);
+
+                                        // パラグラフ内の該当範囲を色付け
                                         var matchedElements = elementRanges
-                                            .Where(r => (result.beginIndex <= r.end && r.start <= result.endIndex))
+                                            .Where(r => DoRangesOverlap(relativeStart, relativeEnd, r.start, r.end))
                                             .ToList();
 
-                                        StringBuilder highlightedText = new StringBuilder();  // 変更1: StringBuilder として宣言
-                                        var newElements = new List<OpenXmlElement>();  // 追加
+                                        StringBuilder highlightedText = new StringBuilder();
 
-                                        // 特定された要素すべてに色付け
                                         foreach (var elem in matchedElements)
                                         {
                                             if (elem.element is Run run)
                                             {
-                                                //Console.WriteLine("run:" + run.InnerText);
-                                                // runの開始位置と終了位置を計算
                                                 int runStart = elem.start;
                                                 int runEnd = elem.end;
 
-                                                if (result.beginIndex <= runStart && result.endIndex >= runEnd)
+                                                if (relativeStart <= runStart && relativeEnd >= runEnd)
                                                 {
-                                                    ApplyBackgroundColor(rates[i], run, null, null, highlightedText);  // 変更2: StringBuilder を渡す
+                                                    ApplyBackgroundColor(rates[i], run, null, null, highlightedText);
                                                 }
                                                 else
                                                 {
-                                                    // 部分的に範囲外の場合
-                                                    int start = Math.Max(result.beginIndex, runStart) - runStart;
-                                                    // 修正: lengthではなく、endOffsetを使用
-                                                    int end = Math.Min(result.endIndex + 1, runEnd) - runStart;  // +1を追加して最後の文字を含める
+                                                    int start = Math.Max(relativeStart, runStart) - runStart;
+                                                    int end = Math.Min(relativeEnd + 1, runEnd) - runStart;
                                                     ApplyBackgroundColor(rates[i], run, start, end, highlightedText);
                                                 }
                                             }
                                             else if (elem.element is DocumentFormat.OpenXml.Math.OfficeMath math)
                                             {
-                                                //Console.WriteLine("math:" + (elem.element.InnerText));
                                                 ApplyBackgroundColor(rates[i], math, highlightedText);
                                             }
-
                                         }
+
                                         // 色付け結果の確認
+                                        string matchedText = fullDocText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
                                         bool colorMatched = CompareStringsIgnoringWhitespace(highlightedText.ToString(), matchedText);
                                         if (!colorMatched)
                                         {
@@ -118,8 +135,7 @@ namespace Arx.DocSearch.Util
                                 }
                             }
 
-                            // paragraphループの外に移動
-                            if (!foundInAnyParagraph)
+                            if (!foundInDocument)
                             {
                                 sb.AppendLine("エラー: 指定されたテキストが見つかりませんでした。");
                                 sb.AppendLine($"検索文: searchPatterns[{i}]{searchPatterns[i]}\n{pattern}");
@@ -173,7 +189,9 @@ namespace Arx.DocSearch.Util
 
             ProcessElements(paragraph, elementRanges, combinedText, ref currentPosition);
 
-            return (combinedText.ToString(), elementRanges);
+            string combinedTextString = SpecialCharConverter.ReplaceLine(combinedText.ToString());
+
+            return (combinedTextString, elementRanges);
         }
 
         private void ProcessElements(OpenXmlElement parentElement,
