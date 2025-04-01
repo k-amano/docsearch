@@ -18,7 +18,12 @@ namespace Arx.DocSearch.Util
             StringBuilder sb = new StringBuilder();
             CleanDocument(filePath, filePath);
             WordTextExtractor wte = new WordTextExtractor(filePath, true, false);
+            //Arx.DocSearch.Util.WordTextExtractor wte = new Arx.DocSearch.Util.WordTextExtractor(filePath, true, false);
             string pattern;
+
+            //Console.WriteLine("=== HighlightTextInWord start ===");
+            //Console.WriteLine($"File: {filePath}");
+            //Console.WriteLine($"Search patterns count: {searchPatterns.Length}");
 
             try
             {
@@ -28,6 +33,8 @@ namespace Arx.DocSearch.Util
                     if (body != null)
                     {
                         var paragraphs = body.Descendants<Paragraph>().ToList();
+                        //Console.WriteLine($"Found {paragraphs.Count} paragraphs");
+
                         if (isDebug) sb.AppendLine($"filePath:\n{filePath}\ndocText:\n{wte.Text}");
 
                         // 全パラグラフのテキストを連結
@@ -37,7 +44,7 @@ namespace Arx.DocSearch.Util
 
                         foreach (var paragraph in paragraphs)
                         {
-                            var (paragraphText, _) = CreateCombinedText(paragraph);
+                            var paragraphText = CreateCombinedText(paragraph);
                             if (!string.IsNullOrWhiteSpace(paragraphText))
                             {
                                 paragraphRanges.Add((currentPosition, currentPosition + paragraphText.Length - 1, paragraph));
@@ -47,12 +54,12 @@ namespace Arx.DocSearch.Util
                         }
 
                         string fullDocText = combinedDocText.ToString();
-                        Console.WriteLine("fullDocText:\n" + fullDocText);
+                        //Console.WriteLine("fullDocText:\n" + fullDocText);
 
                         for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
                         {
                             string searchPattern = Regex.Replace(searchPatterns[i], @"^[0-9]+\.?\s+", "");
-                            searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
+                            //searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
                             string[] words = searchPattern.Split(' ');
                             if (searchPattern.Length < 20 && words.Length < 3) continue;
                             pattern = CreateSearchPattern(searchPattern);
@@ -79,40 +86,69 @@ namespace Arx.DocSearch.Util
                                     foreach (var paragraphRange in affectedParagraphs)
                                     {
                                         var paragraph = paragraphRange.paragraph;
-                                        var (combinedText, elementRanges) = CreateCombinedText(paragraph);
+                                        var combinedText = CreateCombinedText(paragraph);
+                                        var elementRanges = GetElementRanges(paragraph);
 
                                         // パラグラフ内での相対位置を計算
                                         int relativeStart = Math.Max(0, result.beginIndex - paragraphRange.start);
                                         int relativeEnd = Math.Min(combinedText.Length - 1, result.endIndex - paragraphRange.start);
+                                        //Console.WriteLine($"Searching in range: {relativeStart}-{relativeEnd}");
 
-                                        // パラグラフ内の該当範囲を色付け
+
                                         var matchedElements = elementRanges
-                                            .Where(r => DoRangesOverlap(relativeStart, relativeEnd, r.start, r.end))
+                                            .Where(r =>
+                                            {
+                                                bool overlaps = DoRangesOverlap(relativeStart, relativeEnd, r.start, r.end);
+                                                //Console.WriteLine($"Search:{relativeStart}-{relativeEnd} Element:{r.start}-{r.end} Type:{r.element.LocalName} Text:'{r.element.InnerText}' Overlaps:{overlaps}");
+                                                return overlaps;
+                                            })
                                             .ToList();
+
 
                                         StringBuilder highlightedText = new StringBuilder();
 
+                                        //Console.WriteLine($"=== About to process {matchedElements.Count} elements ===");
+                                        //Console.WriteLine($"relativeStart: {relativeStart}, relativeEnd: {relativeEnd}");
+
                                         foreach (var elem in matchedElements)
                                         {
-                                            if (elem.element is Run run)
-                                            {
-                                                int runStart = elem.start;
-                                                int runEnd = elem.end;
+                                            //Console.WriteLine($"\nTrying to color - Type:{elem.element.LocalName} Range:{elem.start}-{elem.end} Text:'{elem.element.InnerText}' Parent:{elem.element.Parent?.LocalName}");
 
-                                                if (relativeStart <= runStart && relativeEnd >= runEnd)
+                                            if (elem.element.LocalName == "t")
+                                            {
+                                                var run = GetParentRun(elem.element);
+                                                if (run != null)
                                                 {
-                                                    ApplyBackgroundColor(rates[i], run, null, null, highlightedText);
+                                                    //Console.WriteLine($"Processing run: '{run.InnerText}'");
+                                                    int runStart = elem.start;
+                                                    int runEnd = elem.end;
+
+                                                    //Console.WriteLine($"Processing run: start={runStart}, end={runEnd}");
+                                                    if (relativeStart <= runStart && relativeEnd >= runEnd)
+                                                    {
+                                                        //Console.WriteLine("Applying full color");
+                                                        ApplyBackgroundColor(rates[i], run, null, null, highlightedText);
+                                                    }
+                                                    else
+                                                    {
+                                                        int start = Math.Max(relativeStart, runStart) - runStart;
+                                                        int end = Math.Min(relativeEnd + 1, runEnd) - runStart;
+                                                        //Console.WriteLine($"Applying partial color: start={start}, end={end}");
+                                                        ApplyBackgroundColor(rates[i], run, start, end, highlightedText);
+                                                    }
                                                 }
                                                 else
                                                 {
-                                                    int start = Math.Max(relativeStart, runStart) - runStart;
-                                                    int end = Math.Min(relativeEnd + 1, runEnd) - runStart;
-                                                    ApplyBackgroundColor(rates[i], run, start, end, highlightedText);
+                                                    //Console.WriteLine($"No parent Run found for text: '{elem.element.InnerText}'");
                                                 }
                                             }
                                             else if (elem.element is DocumentFormat.OpenXml.Math.OfficeMath math)
                                             {
                                                 ApplyBackgroundColor(rates[i], math, highlightedText);
+                                            }
+                                            else
+                                            {
+                                                //Console.WriteLine($"Other element: Type:{elem.element.LocalName} Range:{elem.start}-{elem.end}");
                                             }
                                         }
 
@@ -174,114 +210,17 @@ namespace Arx.DocSearch.Util
             runProperties.Append(shading);
 
             // 数式のテキストを取得して追加
-            StringBuilder mathText = new StringBuilder();
-            int currentPosition = 0; // 新しい変数を追加
-            ProcessElements(mathElement, new List<(int start, int end, OpenXmlElement element)>(), mathText, ref currentPosition);
-            highlightedText?.Append(mathText.ToString());
+            string mathText = SpecialCharConverter.ExtractFromMathElement(mathElement, 0);
+            highlightedText?.Append(mathText);
         }
 
-        private (string combinedText, List<(int start, int end, OpenXmlElement element)>)
-        CreateCombinedText(Paragraph paragraph)
+        private string CreateCombinedText(Paragraph paragraph)
         {
-            var elementRanges = new List<(int start, int end, OpenXmlElement element)>();
-            StringBuilder combinedText = new StringBuilder();
-            int currentPosition = 0;
-
-            ProcessElements(paragraph, elementRanges, combinedText, ref currentPosition);
-
-            string combinedTextString = SpecialCharConverter.ReplaceLine(combinedText.ToString());
-
-            return (combinedTextString, elementRanges);
+            string result = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+            result = SpecialCharConverter.ReplaceLine(result);
+            return result;
         }
 
-        private void ProcessElements(OpenXmlElement parentElement,
-           List<(int start, int end, OpenXmlElement element)> elementRanges,
-           StringBuilder combinedText,
-           ref int currentPosition)
-        {
-            foreach (var element in parentElement.Elements())
-            {
-                string elementText = "";
-                string typeName = element.GetType().FullName;
-
-                if (typeName == "DocumentFormat.OpenXml.Wordprocessing.Run")
-                {
-                    var run = (Run)element;
-                    elementText = SpecialCharConverter.ConvertSpecialCharactersInRun(run);
-                    if (!string.IsNullOrEmpty(elementText))
-                    {
-                        elementRanges.Add((currentPosition, currentPosition + elementText.Length, run));
-                        combinedText.Append(elementText);
-                        currentPosition += elementText.Length;
-                    }
-                }
-                else if (typeName == "DocumentFormat.OpenXml.Wordprocessing.Text")
-                {
-                    var text = (DocumentFormat.OpenXml.Wordprocessing.Text)element;
-                    elementText = text.Text;
-                    if (!string.IsNullOrEmpty(elementText))
-                    {
-                        elementRanges.Add((currentPosition, currentPosition + elementText.Length, text));
-                        combinedText.Append(elementText);
-                        currentPosition += elementText.Length;
-                    }
-                }
-                else if (typeName == "DocumentFormat.OpenXml.Math.Text")
-                {
-                    var text = (DocumentFormat.OpenXml.Math.Text)element;
-                    elementText = text.Text;
-                    if (!string.IsNullOrEmpty(elementText))
-                    {
-                        elementRanges.Add((currentPosition, currentPosition + elementText.Length, text));
-                        combinedText.Append(elementText);
-                        currentPosition += elementText.Length;
-                    }
-                }
-                else if (typeName == "DocumentFormat.OpenXml.Math.OfficeMath" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Base" ||
-                         typeName == "DocumentFormat.OpenXml.Math.SubArgument" ||
-                         typeName == "DocumentFormat.OpenXml.Math.SuperArgument" ||
-                         typeName == "DocumentFormat.OpenXml.Math.FunctionName" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Numerator" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Denominator" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Delimiter" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Matrix" ||
-                         typeName == "DocumentFormat.OpenXml.Math.MatrixRow" ||
-                         typeName == "DocumentFormat.OpenXml.Math.MathFunction" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Subscript" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Superscript" ||
-                         typeName == "DocumentFormat.OpenXml.Math.Run" ||
-                         typeName == "DocumentFormat.OpenXml.Math.SubSuperscript" ||
-                         typeName == "DocumentFormat.OpenXml.Math.SubscriptProperties") // 追加
-                {
-                    string mathText = SpecialCharConverter.ExtractFromMathElement(element, 0);
-                    if (!string.IsNullOrEmpty(mathText))
-                    {
-                        elementRanges.Add((currentPosition, currentPosition + mathText.Length, element));
-                        combinedText.Append(mathText);
-                        currentPosition += mathText.Length;
-                    }
-                    else
-                    {
-                        ProcessElements(element, elementRanges, combinedText, ref currentPosition);
-                    }
-                }
-                else if (typeName.Contains("Properties") || // この条件を.Math.SubscriptPropertiesの後に移動
-                         typeName.Contains("MatrixColumn") ||
-                         typeName == "DocumentFormat.OpenXml.Math.BeginChar" ||
-                         typeName == "DocumentFormat.OpenXml.Math.EndChar" ||
-                         typeName == "DocumentFormat.OpenXml.Wordprocessing.Style" ||
-                         typeName == "DocumentFormat.OpenXml.Wordprocessing.BookmarkStart")
-                {
-                    continue;
-                }
-                else
-                {
-                    //Console.WriteLine($"真に予期しない要素タイプ: {element.GetType().Name}");
-                    ProcessElements(element, elementRanges, combinedText, ref currentPosition);
-                }
-            }
-        }
 
         private string CreateSearchPattern(string searchText)
         {
@@ -345,13 +284,14 @@ namespace Arx.DocSearch.Util
         {
             Color color = GetHighlightColor(rate);
             string originalText = run.InnerText;
+            //Console.WriteLine($"Applying color {color.R:X2}{color.G:X2}{color.B:X2} to text: '{originalText}', RunProperties: {(run.RunProperties != null ? "exists" : "null")}");
 
             if (startOffset.HasValue || endOffset.HasValue)
             {
                 // 部分的な色付けが必要な場合
                 int start = startOffset ?? 0;
                 int end = endOffset ?? originalText.Length;
-
+                //Console.WriteLine($"Partial coloring: start={start}, end={end}");
                 // 元のRunを3つの部分に分割
                 if (start > 0)
                 {
@@ -405,12 +345,14 @@ namespace Arx.DocSearch.Util
                 if (run.RunProperties == null)
                 {
                     run.RunProperties = new RunProperties();
+                    //Console.WriteLine("Created new RunProperties");
                 }
 
                 var existingShading = run.RunProperties.GetFirstChild<Shading>();
                 if (existingShading != null)
                 {
                     existingShading.Remove();
+                    //Console.WriteLine("Removed existing shading");
                 }
 
                 Shading shading = new Shading()
@@ -421,17 +363,20 @@ namespace Arx.DocSearch.Util
                 };
 
                 run.RunProperties.InsertAt(shading, 0);
+                // Console.WriteLine($"Inserted new shading with color: {color.R:X2}{color.G:X2}{color.B:X2}");
 
-                // 色付けしたテキストを追加
+                // 全体のテキストをhighlightedTextに追加
                 highlightedText?.Append(originalText);
             }
         }
 
         private bool DoRangesOverlap(int start1, int end1, int start2, int end2)
         {
-            // 範囲のオーバーラップをより正確に判定
-            bool overlaps = (start1 <= end2 && start2 <= end1);
-            //Console.WriteLine($"  Range overlap check: ({start1},{end1}) vs ({start2},{end2}) = {overlaps}");
+            // デバッグ出力を追加
+            //Console.WriteLine($"Comparing ranges: ({start1}, {end1}) vs ({start2}, {end2})");
+            bool overlaps = start1 <= end2 && end1 >= start2;  // 等号を追加
+                                                               //Console.WriteLine($"Overlaps: {overlaps}");
+
             return overlaps;
         }
 
@@ -535,6 +480,9 @@ namespace Arx.DocSearch.Util
         {
             try
             {
+                // 数字を含むパターンを正確にマッチさせるために、パターンを調整
+                pattern = Regex.Replace(pattern, @"(\d+)", @"\s*$1\s*");
+
                 Regex regex = new Regex(pattern, RegexOptions.Compiled | RegexOptions.Multiline);
                 MatchCollection matches = regex.Matches(text);
 
@@ -895,6 +843,94 @@ namespace Arx.DocSearch.Util
             }
 
             return length;
+        }
+
+        private List<(int start, int end, OpenXmlElement element)> GetElementRanges(OpenXmlElement paragraph)
+        {
+            var elementRanges = new List<(int start, int end, OpenXmlElement element)>();
+            int currentPosition = 0;
+
+            // 深さ優先で要素を探索
+            ExploreElements(paragraph, elementRanges, ref currentPosition);
+
+            return elementRanges;
+        }
+
+        private void ExploreElements(OpenXmlElement element, List<(int start, int end, OpenXmlElement element)> ranges, ref int currentPosition)
+        {
+            foreach (var child in element.Elements())
+            {
+                if (!child.HasChildren)
+                {
+                    string text = child.InnerText;
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        ranges.Add((currentPosition, currentPosition + text.Length, child));
+                        //Console.WriteLine($"Current[{currentPosition}]: '{text}'");
+                        currentPosition += text.Length;
+                    }
+                }
+                else
+                {
+                    // 数式要素のデバッグを追加（親要素のみ）
+                    if (child.GetType().FullName.StartsWith("DocumentFormat.OpenXml.Math.") &&
+                        child.Parent?.LocalName != "oMath" &&
+                        child.LocalName == "oMath")
+                    {
+                        string mathText = SpecialCharConverter.ExtractFromMathElement(child, 0);
+                        if (!string.IsNullOrEmpty(mathText))
+                        {
+                            //Console.WriteLine($"Math[{child.LocalName}][{currentPosition}]: '{mathText}'");
+                            //int diff = mathText.Length - child.InnerText.Length;
+                            //currentPosition += diff;
+                            ranges.Add((currentPosition, currentPosition + mathText.Length, child));
+                            currentPosition += mathText.Length;
+
+                        }
+                    }
+
+                    else if (child.LocalName == "smartTag")
+                    {
+                        var startPosition = currentPosition;
+                        ExploreElements(child, ranges, ref currentPosition);
+                        ranges.Add((startPosition, currentPosition, child));
+                    }
+                    else
+                    {
+                        ExploreElements(child, ranges, ref currentPosition);
+                    }
+                }
+            }
+        }
+
+        private Run GetParentRun(OpenXmlElement element)
+        {
+            var current = element;
+            while (current != null)
+            {
+                if (current is Run run)
+                {
+                    return run;
+                }
+                if (current.LocalName == "r")
+                {
+                    var newRun = new Run();
+                    foreach (var child in current.Elements())
+                    {
+                        newRun.AppendChild(child.CloneNode(true));
+                    }
+                    var parent = current.Parent;
+                    if (parent != null)
+                    {
+                        parent.ReplaceChild(newRun, current);
+                        return newRun;
+                    }
+                    return null;
+                }
+                //Console.WriteLine($"要素の種別: {current.GetType().Name}, LocalName: {current.LocalName}");
+                current = current.Parent;
+            }
+            return null;
         }
     }
 }
