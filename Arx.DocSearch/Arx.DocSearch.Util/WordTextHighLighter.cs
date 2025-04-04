@@ -88,13 +88,19 @@ namespace Arx.DocSearch.Util
                                         var paragraph = paragraphRange.paragraph;
                                         var combinedText = CreateCombinedText(paragraph);
                                         var elementRanges = GetElementRanges(paragraph);
-
+                                        string displayText = GetDisplayText(elementRanges);
                                         // パラグラフ内での相対位置を計算
                                         int relativeStart = Math.Max(0, result.beginIndex - paragraphRange.start);
                                         int relativeEnd = Math.Min(combinedText.Length - 1, result.endIndex - paragraphRange.start);
                                         //Console.WriteLine($"Searching in range: {relativeStart}-{relativeEnd}");
-
-
+                                        string searchText = combinedText.Substring(relativeStart, relativeEnd);
+                                        string highlightText = displayText.Substring(relativeStart, relativeEnd);
+                                        int? offset = StringOffsetCalculator.CalculateOffset(highlightText, searchText);
+                                        if (offset.HasValue)
+                                        {
+                                            relativeStart += offset.Value;
+                                            relativeEnd += offset.Value;
+                                        }
                                         var matchedElements = elementRanges
                                             .Where(r =>
                                             {
@@ -144,6 +150,7 @@ namespace Arx.DocSearch.Util
                                             }
                                             else if (elem.element is DocumentFormat.OpenXml.Math.OfficeMath math)
                                             {
+                                                //Console.WriteLine($"### Applying Math Color");
                                                 ApplyBackgroundColor(rates[i], math, highlightedText);
                                             }
                                             else
@@ -845,9 +852,9 @@ namespace Arx.DocSearch.Util
             return length;
         }
 
-        private List<(int start, int end, OpenXmlElement element)> GetElementRanges(OpenXmlElement paragraph)
+        private List<(int start, int end, string displayText, OpenXmlElement element)> GetElementRanges(OpenXmlElement paragraph)
         {
-            var elementRanges = new List<(int start, int end, OpenXmlElement element)>();
+            var elementRanges = new List<(int start, int end, string displayText, OpenXmlElement element)>();
             int currentPosition = 0;
 
             // 深さ優先で要素を探索
@@ -856,7 +863,7 @@ namespace Arx.DocSearch.Util
             return elementRanges;
         }
 
-        private void ExploreElements(OpenXmlElement element, List<(int start, int end, OpenXmlElement element)> ranges, ref int currentPosition)
+        private void ExploreElements(OpenXmlElement element, List<(int start, int end, string displayText, OpenXmlElement element)> ranges, ref int currentPosition)
         {
             foreach (var child in element.Elements())
             {
@@ -865,7 +872,7 @@ namespace Arx.DocSearch.Util
                     string text = child.InnerText;
                     if (!string.IsNullOrEmpty(text))
                     {
-                        ranges.Add((currentPosition, currentPosition + text.Length, child));
+                        ranges.Add((currentPosition, currentPosition + text.Length - 1, text, child));
                         //Console.WriteLine($"Current[{currentPosition}]: '{text}'");
                         currentPosition += text.Length;
                     }
@@ -883,17 +890,15 @@ namespace Arx.DocSearch.Util
                             //Console.WriteLine($"Math[{child.LocalName}][{currentPosition}]: '{mathText}'");
                             //int diff = mathText.Length - child.InnerText.Length;
                             //currentPosition += diff;
-                            ranges.Add((currentPosition, currentPosition + mathText.Length, child));
+                            ranges.Add((currentPosition, currentPosition + mathText.Length - 1, mathText, child));
                             currentPosition += mathText.Length;
-
                         }
                     }
-
                     else if (child.LocalName == "smartTag")
                     {
                         var startPosition = currentPosition;
                         ExploreElements(child, ranges, ref currentPosition);
-                        ranges.Add((startPosition, currentPosition, child));
+                        ranges.Add((startPosition, currentPosition - 1, "", child));
                     }
                     else
                     {
@@ -931,6 +936,16 @@ namespace Arx.DocSearch.Util
                 current = current.Parent;
             }
             return null;
+        }
+
+        private string GetDisplayText(List<(int start, int end, string displayText, OpenXmlElement element)> elementRanges)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (var range in elementRanges)
+            {
+                sb.Append(range.displayText);
+            }
+            return sb.ToString();
         }
     }
 }

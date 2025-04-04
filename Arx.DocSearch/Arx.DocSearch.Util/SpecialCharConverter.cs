@@ -130,286 +130,286 @@ namespace Arx.DocSearch.Util
         { 0xF07E, "\u223C" }, // TILDE OPERATOR
     };
 
-		public static string ConvertSpecialCharactersInParagraph(Paragraph paragraph)
-		{
-			StringBuilder extractedText = new StringBuilder();
-			ExtractTextRecursive(paragraph, 0, extractedText);
-			return extractedText.ToString();
-		}
+        public static string ConvertSpecialCharactersInParagraph(Paragraph paragraph)
+        {
+            StringBuilder extractedText = new StringBuilder();
+            ExtractTextRecursive(paragraph, 0, extractedText);
+            return extractedText.ToString();
+        }
 
-		private static void ExtractTextRecursive(OpenXmlElement element, int depth, StringBuilder extractedText)
-		{
-			if (element is Run run)
-			{
-				ProcessRun(run, depth, extractedText);
-			}
-			else if (element is OpenXmlUnknownElement unknownElement)
-			{
-				ProcessUnknownElement(unknownElement, depth, extractedText);
-			}
-			else if (element.LocalName == "oMath" || element.LocalName == "oMathPara")
-			{
-				extractedText.Append(ExtractFromMathElement(element, depth));
-			}
-			else
-			{
-				foreach (var child in element.Elements())
-				{
-					ExtractTextRecursive(child, depth + 1, extractedText);
-				}
-			}
-		}
+        private static void ExtractTextRecursive(OpenXmlElement element, int depth, StringBuilder extractedText)
+        {
+            if (element is Run run)
+            {
+                ProcessRun(run, depth, extractedText);
+            }
+            else if (element is OpenXmlUnknownElement unknownElement)
+            {
+                ProcessUnknownElement(unknownElement, depth, extractedText);
+            }
+            else if (element.LocalName == "oMath" || element.LocalName == "oMathPara")
+            {
+                extractedText.Append(ExtractFromMathElement(element, depth));
+            }
+            else if (element.LocalName == "del") // 削除されたテキスト要素
+            {
+                foreach (var child in element.Elements())
+                {
+                    ExtractTextRecursive(child, depth + 1, extractedText);
+                }
+            }
+            else if (element.LocalName == "delText") // 削除されたテキスト内容
+            {
+                extractedText.Append(element.InnerText);
+            }
+            else
+            {
+                foreach (var child in element.Elements())
+                {
+                    ExtractTextRecursive(child, depth + 1, extractedText);
+                }
+            }
+        }
 
-		private static void ProcessRun(Run run, int depth, StringBuilder extractedText)
-		{
-			string convertedText = ConvertSpecialCharactersInRun(run);
-			extractedText.Append(convertedText);
-		}
+        private static void ProcessRun(Run run, int depth, StringBuilder extractedText)
+        {
+            string convertedText = ConvertSpecialCharactersInRun(run);
+            extractedText.Append(convertedText);
+        }
 
-		private static void ProcessText(string textContent, bool isSymbolFont, int depth, StringBuilder extractedText)
-		{
-			for (int i = 0; i < textContent.Length; i++)
-			{
-				char c = textContent[i];
-				string converted = ConvertChar(c, isSymbolFont);
-				extractedText.Append(converted);
-			}
-		}
+        private static void ProcessUnknownElement(OpenXmlUnknownElement element, int depth, StringBuilder extractedText)
+        {
+            if (element.HasChildren)
+            {
+                foreach (var child in element.ChildElements)
+                {
+                    ExtractTextRecursive(child, depth + 1, extractedText);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(element.InnerText))
+            {
+                extractedText.Append(element.InnerText);
+            }
+        }
 
-		private static void ProcessSymbol(OpenXmlElement symbolElement, int depth, StringBuilder extractedText)
-		{
-			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
-			if (charAttribute != null)
-			{
-				string symbolChar = charAttribute.Value;
-				string converted = ConvertSymbolChar(symbolChar);
-				extractedText.Append(converted);
-			}
-		}
+        public static string ConvertChar(char c, bool isSymbolFont)
+        {
+            if (char.IsControl(c) || char.IsWhiteSpace(c))
+            {
+                return c.ToString();
+            }
 
-		private static void ProcessUnknownElement(OpenXmlUnknownElement element, int depth, StringBuilder extractedText)
-		{
-			if (element.HasChildren)
-			{
-				foreach (var child in element.ChildElements)
-				{
-					ExtractTextRecursive(child, depth + 1, extractedText);
-				}
-			}
-			else if (!string.IsNullOrWhiteSpace(element.InnerText))
-			{
-				extractedText.Append(element.InnerText);
-			}
-		}
+            if (isSymbolFont)
+            {
+                if (SymbolToUnicode.TryGetValue((byte)c, out string unicodeChar))
+                {
+                    return unicodeChar;
+                }
+            }
 
-		public static string ConvertChar(char c, bool isSymbolFont)
-		{
-			if (char.IsControl(c) || char.IsWhiteSpace(c))
-			{
-				return c.ToString();
-			}
+            if (GreekCharMap.TryGetValue(c, out string greekChar))
+            {
+                return greekChar;
+            }
 
-			if (isSymbolFont)
-			{
-				if (SymbolToUnicode.TryGetValue((byte)c, out string unicodeChar))
-				{
-					return unicodeChar;
-				}
-			}
+            // 変換できない外字の場合、空白を返す
+            return ((int)c >= 0xF000 && (int)c <= 0xF0FF) ? " " : c.ToString();
+        }
 
-			if (GreekCharMap.TryGetValue(c, out string greekChar))
-			{
-				return greekChar;
-			}
+        public static string ConvertSymbolChar(string charValue)
+        {
+            if (int.TryParse(charValue, System.Globalization.NumberStyles.HexNumber, null, out int symbolCode))
+            {
+                if (SymbolUnicodeMap.TryGetValue(symbolCode, out string unicodeChar))
+                {
+                    return unicodeChar;
+                }
+            }
+            // 変換できない外字の場合、空白を返す
+            if (symbolCode >= 0xF000 && symbolCode <= 0xF0FF)
+            {
+                return " ";
+            }
+            return charValue;
+        }
 
-			// 変換できない外字の場合、空白を返す
-			return ((int)c >= 0xF000 && (int)c <= 0xF0FF) ? " " : c.ToString();
-		}
+        public static bool IsSymbolFont(Run run)
+        {
+            var rPr = run.RunProperties;
+            if (rPr != null && rPr.RunFonts != null)
+            {
+                return rPr.RunFonts.Ascii?.Value == "Symbol" ||
+                       rPr.RunFonts.HighAnsi?.Value == "Symbol" ||
+                       rPr.RunFonts.ComplexScript?.Value == "Symbol";
+            }
+            return false;
+        }
 
-		public static string ConvertSymbolChar(string charValue)
-		{
-			if (int.TryParse(charValue, System.Globalization.NumberStyles.HexNumber, null, out int symbolCode))
-			{
-				if (SymbolUnicodeMap.TryGetValue(symbolCode, out string unicodeChar))
-				{
-					return unicodeChar;
-				}
-			}
-			// 変換できない外字の場合、空白を返す
-			if (symbolCode >= 0xF000 && symbolCode <= 0xF0FF)
-			{
-				return " ";
-			}
-			return charValue;
-		}
+        public static string ExtractFromMathElement(OpenXmlElement mathElement, int depth)
+        {
+            StringBuilder mathText = new StringBuilder();
 
-		public static bool IsSymbolFont(Run run)
-		{
-			var rPr = run.RunProperties;
-			if (rPr != null && rPr.RunFonts != null)
-			{
-				return rPr.RunFonts.Ascii?.Value == "Symbol" ||
-					   rPr.RunFonts.HighAnsi?.Value == "Symbol" ||
-					   rPr.RunFonts.ComplexScript?.Value == "Symbol";
-			}
-			return false;
-		}
+            switch (mathElement.LocalName)
+            {
+                case "oMathPara":
+                case "oMath":
+                case "sSup": // 上付き文字
+                case "sSubSup": // 下付きおよび上付き文字
+                case "sSub": // 下付き文字
+                    foreach (var child in mathElement.ChildElements)
+                    {
+                        mathText.Append(ExtractFromMathElement(child, depth + 1));
+                    }
+                    break;
+                case "r":
+                    string innerText = mathElement.InnerText;
+                    string convertedText = ConvertMathText(innerText);
+                    mathText.Append(convertedText);
+                    break;
+                case "sup": // 上付き文字の内容
+                    mathText.Append("^(");
+                    foreach (var child in mathElement.ChildElements)
+                    {
+                        mathText.Append(ExtractFromMathElement(child, depth + 1));
+                    }
+                    mathText.Append(")");
+                    break;
+                case "del": // 削除されたテキスト
+                    foreach (var child in mathElement.ChildElements)
+                    {
+                        mathText.Append(ExtractFromMathElement(child, depth + 1));
+                    }
+                    break;
+                case "delText": // 削除されたテキスト内容
+                    string delText = mathElement.InnerText;
+                    mathText.Append(delText);
+                    break;
+                default:
+                    foreach (var child in mathElement.ChildElements)
+                    {
+                        mathText.Append(ExtractFromMathElement(child, depth + 1));
+                    }
+                    break;
+            }
 
-		public static string ExtractFromMathElement(OpenXmlElement mathElement, int depth)
-		{
-			StringBuilder mathText = new StringBuilder();
+            return mathText.ToString();
+        }
 
-			switch (mathElement.LocalName)
-			{
-				case "oMathPara":
-				case "oMath":
-				case "sSup": // 上付き文字
-				case "sSubSup": // 下付きおよび上付き文字
-				case "sSub": // 下付き文字
-					foreach (var child in mathElement.ChildElements)
-					{
-						mathText.Append(ExtractFromMathElement(child, depth + 1));
-					}
-					break;
-				case "r":
-					string innerText = mathElement.InnerText;
-					string convertedText = ConvertMathText(innerText);
-					mathText.Append(convertedText);
-					break;
-				case "sup": // 上付き文字の内容
-					mathText.Append("^(");
-					foreach (var child in mathElement.ChildElements)
-					{
-						mathText.Append(ExtractFromMathElement(child, depth + 1));
-					}
-					mathText.Append(")");
-					break;
-				default:
-					foreach (var child in mathElement.ChildElements)
-					{
-						mathText.Append(ExtractFromMathElement(child, depth + 1));
-					}
-					break;
-			}
+        public static string ConvertMathText(string text)
+        {
+            StringBuilder converted = new StringBuilder();
+            for (int i = 0; i < text.Length; i++)
+            {
+                int charCode = char.ConvertToUtf32(text, i);
 
-			return mathText.ToString();
-		}
+                if (char.IsSurrogate(text[i]))
+                {
+                    i++;
+                }
 
-		public static string ConvertMathText(string text)
-		{
-			StringBuilder converted = new StringBuilder();
-			for (int i = 0; i < text.Length; i++)
-			{
-				int charCode = char.ConvertToUtf32(text, i);
+                if (GreekCharMap.TryGetValue(charCode, out string specialChar))
+                {
+                    converted.Append(specialChar);
+                }
+                else
+                {
+                    converted.Append(char.ConvertFromUtf32(charCode));
+                }
+            }
+            return converted.ToString();
+        }
 
-				if (char.IsSurrogate(text[i]))
-				{
-					i++;
-				}
+        public static string ConvertSpecialCharactersInRun(Run run)
+        {
+            StringBuilder convertedText = new StringBuilder();
+            bool isSymbolFont = IsSymbolFont(run);
 
-				if (GreekCharMap.TryGetValue(charCode, out string specialChar))
-				{
-					converted.Append(specialChar);
-				}
-				else
-				{
-					converted.Append(char.ConvertFromUtf32(charCode));
-				}
-			}
-			return converted.ToString();
-		}
+            foreach (var runChild in run.ChildElements)
+            {
+                if (runChild is Text textElement)
+                {
+                    foreach (char c in textElement.Text)
+                    {
+                        string converted = ConvertChar(c, isSymbolFont);
+                        convertedText.Append(converted);
+                    }
+                }
+                else if (runChild.LocalName == "sym")
+                {
+                    string converted = ConvertSymbolElement(runChild);
+                    convertedText.Append(converted);
+                }
+            }
 
-		public static string ConvertSpecialCharactersInRun(Run run)
-		{
-			StringBuilder convertedText = new StringBuilder();
-			bool isSymbolFont = IsSymbolFont(run);
+            return convertedText.ToString();
+        }
 
-			foreach (var runChild in run.ChildElements)
-			{
-				if (runChild is Text textElement)
-				{
-					foreach (char c in textElement.Text)
-					{
-						string converted = ConvertChar(c, isSymbolFont);
-						convertedText.Append(converted);
-					}
-				}
-				else if (runChild.LocalName == "sym")
-				{
-					string converted = ConvertSymbolElement(runChild);
-					convertedText.Append(converted);
-				}
-			}
+        private static string ConvertSymbolElement(OpenXmlElement symbolElement)
+        {
+            var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
+            if (charAttribute != null)
+            {
+                string symbolChar = charAttribute.Value;
+                return ConvertSymbolChar(symbolChar);
+            }
+            return " "; // 変換できない場合は空白を返す
+        }
 
-			return convertedText.ToString();
-		}
+        public static string ReplaceLine(string line)
+        {
+            line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0\u200e]", " "); //文字コードC2A0（UTF-8の半角空白）
+            line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
+            line = Regex.Replace(line ?? "", @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
+            line = Regex.Replace(line ?? "", @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン
+            line = Regex.Replace(line ?? "", @"[\u00A9\u00AE\u2022\u2122]", "\""); //UTF-8のスラッシュ}
+            line = TextConverter.ZenToHan(line ?? "");
+            line = TextConverter.HankToZen(line ?? "");
+            return line;
+        }
 
-		private static string ConvertSymbolElement(OpenXmlElement symbolElement)
-		{
-			var charAttribute = symbolElement.GetAttributes().FirstOrDefault(a => a.LocalName == "char");
-			if (charAttribute != null)
-			{
-				string symbolChar = charAttribute.Value;
-				return ConvertSymbolChar(symbolChar);
-			}
-			return " "; // 変換できない場合は空白を返す
-		}
+        public static string ReplaceMathSymbols(string input)
+        {
+            // ギリシャ文字と数学記号のUnicode範囲
+            string pattern = @"[\u0370-\u03FF\u1F00-\u1FFF" +  // ギリシャ文字
+                              @"\u2100-\u214F" +               // 文字様記号
+                              @"\u2190-\u21FF" +               // 矢印
+                              @"\u2200-\u22FF" +               // 数学記号
+                              @"\u2300-\u23FF" +               // その他の技術記号
+                              @"\u25A0-\u25FF" +               // 幾何学模様
+                              @"\u2600-\u26FF" +               // その他の記号
+                              @"\u2700-\u27BF" +               // 装飾記号
+                              @"\u27C0-\u27EF" +               // その他の数学記号-A
+                              @"\u2980-\u29FF" +               // その他の数学記号-B
+                              @"\u2A00-\u2AFF" +               // 補助数学演算子
+                              @"\u2B00-\u2BFF]";               // その他の記号と矢印
 
-		public static string ReplaceLine(string line)
-		{
-			line = Regex.Replace(line ?? "", @"[\u00a0\uc2a0\u200e]", " "); //文字コードC2A0（UTF-8の半角空白）
-			line = Regex.Replace(line ?? "", @"[\u0091\u0092\u2018\u2019]", "'"); //UTF-8のシングルクォーテーション
-			line = Regex.Replace(line ?? "", @"[\u0093\u0094\u00AB\u201C\u201D]", "\""); //UTF-8のダブルクォーテーション
-			line = Regex.Replace(line ?? "", @"[\u0097\u2013\u2014]", "\""); //UTF-8のハイフン
-			line = Regex.Replace(line ?? "", @"[\u00A9\u00AE\u2022\u2122]", "\""); //UTF-8のスラッシュ}
-			line = TextConverter.ZenToHan(line ?? "");
-			line = TextConverter.HankToZen(line ?? "");
-			return line;
-		}
+            return Regex.Replace(input, pattern, "");
+        }
 
-		public static string ReplaceMathSymbols(string input)
-		{
-			// ギリシャ文字と数学記号のUnicode範囲
-			string pattern = @"[\u0370-\u03FF\u1F00-\u1FFF" +  // ギリシャ文字
-							  @"\u2100-\u214F" +               // 文字様記号
-							  @"\u2190-\u21FF" +               // 矢印
-							  @"\u2200-\u22FF" +               // 数学記号
-							  @"\u2300-\u23FF" +               // その他の技術記号
-							  @"\u25A0-\u25FF" +               // 幾何学模様
-							  @"\u2600-\u26FF" +               // その他の記号
-							  @"\u2700-\u27BF" +               // 装飾記号
-							  @"\u27C0-\u27EF" +               // その他の数学記号-A
-							  @"\u2980-\u29FF" +               // その他の数学記号-B
-							  @"\u2A00-\u2AFF" +               // 補助数学演算子
-							  @"\u2B00-\u2BFF]";               // その他の記号と矢印
+        static public string RemoveSymbols(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
 
-			return Regex.Replace(input, pattern, "");
-		}
+            // 半角記号を削除するための正規表現パターン
+            string pattern = @"[!""#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]";
 
-		static public string RemoveSymbols(string input)
-		{
-			if (string.IsNullOrEmpty(input))
-				return input;
+            // UTF-8で表示できない文字を検出するための正規表現パターン
+            // \p{C}: 制御文字とプライベート用途文字
+            // \p{Cn}: 未割り当てのコードポイント
+            string invalidCharsPattern = @"[\p{C}\p{Cn}]";
 
-			// 半角記号を削除するための正規表現パターン
-			string pattern = @"[!""#$%&'()*+,-./:;<=>?@[\\\]^_`{|}~]";
+            // 正規表現を使用して半角記号とUTF-8で表示できない文字を空文字に置換
+            string result = input;
+            result = Regex.Replace(result, pattern, "");
+            result = Regex.Replace(result, invalidCharsPattern, "");
 
-			// UTF-8で表示できない文字を検出するための正規表現パターン
-			// \p{C}: 制御文字とプライベート用途文字
-			// \p{Cn}: 未割り当てのコードポイント
-			string invalidCharsPattern = @"[\p{C}\p{Cn}]";
+            return result;
+        }
+        public static bool IsSpecialChar(char c)
+        {
+            return GreekCharMap.ContainsKey(c) || SymbolUnicodeMap.ContainsKey((int)c);
+        }
 
-			// 正規表現を使用して半角記号とUTF-8で表示できない文字を空文字に置換
-			string result = input;
-			result = Regex.Replace(result, pattern, "");
-			result = Regex.Replace(result, invalidCharsPattern, "");
-
-			return result;
-		}
-		public static bool IsSpecialChar(char c)
-		{
-			return GreekCharMap.ContainsKey(c) || SymbolUnicodeMap.ContainsKey((int)c);
-		}
-
-	}
+    }
 }
