@@ -93,8 +93,8 @@ namespace Arx.DocSearch.Util
                                         int relativeStart = Math.Max(0, result.beginIndex - paragraphRange.start);
                                         int relativeEnd = Math.Min(combinedText.Length - 1, result.endIndex - paragraphRange.start);
                                         //Console.WriteLine($"Searching in range: {relativeStart}-{relativeEnd}");
-                                        string searchText = combinedText.Substring(relativeStart, relativeEnd);
-                                        string highlightText = displayText.Substring(relativeStart, relativeEnd);
+                                        string searchText = SafeSubstring(combinedText, relativeStart, relativeEnd);
+                                        string highlightText = SafeSubstring(displayText, relativeStart, relativeEnd);
                                         int? offset = StringOffsetCalculator.CalculateOffset(highlightText, searchText);
                                         if (offset.HasValue)
                                         {
@@ -160,7 +160,7 @@ namespace Arx.DocSearch.Util
                                         }
 
                                         // 色付け結果の確認
-                                        string matchedText = fullDocText.Substring(result.beginIndex, result.endIndex - result.beginIndex + 1);
+                                        string matchedText = SafeSubstring(fullDocText, result.beginIndex, result.endIndex - result.beginIndex + 1);
                                         bool colorMatched = CompareStringsIgnoringWhitespace(highlightedText.ToString(), matchedText);
                                         if (!colorMatched)
                                         {
@@ -312,7 +312,7 @@ namespace Arx.DocSearch.Util
                 // 色付け部分
                 Run coloredRun = (Run)run.CloneNode(true);
                 coloredRun.RemoveAllChildren();
-                string coloredText = originalText.Substring(start, end - start);
+                string coloredText = SafeSubstring(originalText, start, end - start);
                 coloredRun.AppendChild(new Text(coloredText));
 
                 // RunPropertiesの作成と色付け
@@ -339,7 +339,7 @@ namespace Arx.DocSearch.Util
                     // 後半部分（色付けなし）
                     Run afterRun = (Run)run.CloneNode(true);
                     afterRun.RemoveAllChildren();
-                    afterRun.AppendChild(new Text(originalText.Substring(end)));
+                    afterRun.AppendChild(new Text(SafeSubstring(originalText, end)));
                     run.InsertBeforeSelf(afterRun);
                 }
 
@@ -544,18 +544,18 @@ namespace Arx.DocSearch.Util
 
                         if (colorStart > 0)
                         {
-                            newRun.AppendChild(new Text(runText.Substring(0, colorStart)));
+                            newRun.AppendChild(new Text(SafeSubstring(runText, 0, colorStart)));
                         }
 
                         var coloredRun = (Run)run.Clone();
                         coloredRun.RemoveAllChildren();
-                        coloredRun.AppendChild(new Text(runText.Substring(colorStart, colorEnd - colorStart)));
+                        coloredRun.AppendChild(new Text(SafeSubstring(runText, colorStart, colorEnd - colorStart)));
                         ApplyBackgroundColor(rate, coloredRun);
                         newRun.AppendChild(coloredRun);
 
                         if (colorEnd < runLength)
                         {
-                            newRun.AppendChild(new Text(runText.Substring(colorEnd)));
+                            newRun.AppendChild(new Text(SafeSubstring(runText, colorEnd)));
                         }
 
                         element.ReplaceChild(newRun, run);
@@ -948,4 +948,5 @@ namespace Arx.DocSearch.Util
             return sb.ToString();
         }
     }
+
 }
