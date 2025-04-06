@@ -161,7 +161,10 @@ namespace Arx.DocSearch.Util
 
                                         // 色付け結果の確認
                                         string matchedText = SafeSubstring(fullDocText, result.beginIndex, result.endIndex - result.beginIndex + 1);
-                                        bool colorMatched = CompareStringsIgnoringWhitespace(highlightedText.ToString(), matchedText);
+                                        bool colorMatched = false;
+                                        if (isDebug) colorMatched = CompareStringsIgnoringWhitespace(highlightedText.ToString(), matchedText);
+                                        else colorMatched = RoughCompare(highlightedText.ToString(), matchedText);
+
                                         if (!colorMatched)
                                         {
                                             sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
@@ -946,6 +949,36 @@ namespace Arx.DocSearch.Util
                 sb.Append(range.displayText);
             }
             return sb.ToString();
+        }
+
+        public bool RoughCompare(string FirstString, string SecondString)
+        {
+            // 文字列を半角スペースで分割
+            string[] firstWords = FirstString.Split(' ');
+            string[] secondWords = SecondString.Split(' ');
+
+            int matchCount = 0;
+            int currentSecondIndex = 0;
+
+            // FirstStringの各単語について
+            foreach (string firstWord in firstWords)
+            {
+                // SecondStringの現在位置から探索を開始
+                for (int i = currentSecondIndex; i < secondWords.Length; i++)
+                {
+                    if (firstWord == secondWords[i])
+                    {
+                        // 一致した場合
+                        matchCount++;
+                        currentSecondIndex = i + 1; // 次の探索開始位置を更新
+                        break;
+                    }
+                }
+            }
+
+            // 一致率を計算して0.8以上ならtrue
+            double matchRate = (double)matchCount / firstWords.Length;
+            return matchRate >= 0.8;
         }
     }
 
