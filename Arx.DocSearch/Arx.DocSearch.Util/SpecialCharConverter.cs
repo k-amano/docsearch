@@ -406,6 +406,14 @@ namespace Arx.DocSearch.Util
 
             return result;
         }
+
+        static public string RemoveSymbolsAll(string input)
+        {
+            string ret = ReplaceMathSymbols(input);
+            ret = ReplaceLine(ret ?? string.Empty);
+            ret = RemoveSymbols(ret ?? string.Empty);
+            return ret ?? string.Empty;
+        }
         public static bool IsSpecialChar(char c)
         {
             return GreekCharMap.ContainsKey(c) || SymbolUnicodeMap.ContainsKey((int)c);

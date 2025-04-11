@@ -44,13 +44,7 @@ namespace Arx.DocSearch.Util
 
                         foreach (var paragraph in paragraphs)
                         {
-                            var paragraphText = CreateCombinedText(paragraph);
-                            if (!string.IsNullOrWhiteSpace(paragraphText))
-                            {
-                                paragraphRanges.Add((currentPosition, currentPosition + paragraphText.Length - 1, paragraph));
-                                combinedDocText.Append(paragraphText);
-                                currentPosition += paragraphText.Length;
-                            }
+                            ProcessParagraphForCombinedText(paragraph, combinedDocText, paragraphRanges, ref currentPosition);
                         }
 
                         string fullDocText = combinedDocText.ToString();
@@ -58,133 +52,28 @@ namespace Arx.DocSearch.Util
 
                         for (int i = 0; i < searchPatterns.Length && i < rates.Length; i++)
                         {
-                            string searchPattern = Regex.Replace(searchPatterns[i], @"^[0-9]+\.?\s+", "");
-                            //searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
-                            string[] words = searchPattern.Split(' ');
-                            if (searchPattern.Length < 20 && words.Length < 3) continue;
-                            pattern = CreateSearchPattern(searchPattern);
-                            bool foundInDocument = false;
+                            pattern = PrepareSearchPattern(searchPatterns[i], out string[] words);
+                            if (searchPatterns[i].Length < 20 && words.Length < 3) continue;
 
+                            bool foundInDocument = false;
                             var results = MatchIgnoringWhitespace(pattern, fullDocText, sb);
 
                             if (results.Count > 0)
                             {
                                 foundInDocument = true;
-                                if (isDebug)
-                                {
-                                    sb.AppendLine("エラー: 指定されたテキストが見つかりました。");
-                                    sb.AppendLine($"検索文:searchPatterns[{i}] {searchPatterns[i]}\n{pattern}");
-                                }
+                                LogFoundPattern(isDebug, sb, i, searchPatterns, pattern);
 
                                 foreach (var result in results)
                                 {
-                                    // 該当する範囲に含まれるパラグラフを特定
-                                    var affectedParagraphs = paragraphRanges
-                                        .Where(p => DoRangesOverlap(result.beginIndex, result.endIndex, p.start, p.end))
-                                        .ToList();
+                                    var affectedParagraphs = FindAffectedParagraphs(paragraphRanges, result);
 
-                                    foreach (var paragraphRange in affectedParagraphs)
-                                    {
-                                        var paragraph = paragraphRange.paragraph;
-                                        var combinedText = CreateCombinedText(paragraph);
-                                        var elementRanges = GetElementRanges(paragraph);
-                                        string displayText = GetDisplayText(elementRanges);
-                                        // パラグラフ内での相対位置を計算
-                                        int relativeStart = Math.Max(0, result.beginIndex - paragraphRange.start);
-                                        int relativeEnd = Math.Min(combinedText.Length - 1, result.endIndex - paragraphRange.start);
-                                        //Console.WriteLine($"Searching in range: {relativeStart}-{relativeEnd}");
-                                        string searchText = SafeSubstring(combinedText, relativeStart, relativeEnd);
-                                        string highlightText = SafeSubstring(displayText, relativeStart, relativeEnd);
-                                        int? offset = StringOffsetCalculator.CalculateOffset(highlightText, searchText);
-                                        if (offset.HasValue)
-                                        {
-                                            relativeStart += offset.Value;
-                                            relativeEnd += offset.Value;
-                                        }
-                                        var matchedElements = elementRanges
-                                            .Where(r =>
-                                            {
-                                                bool overlaps = DoRangesOverlap(relativeStart, relativeEnd, r.start, r.end);
-                                                //Console.WriteLine($"Search:{relativeStart}-{relativeEnd} Element:{r.start}-{r.end} Type:{r.element.LocalName} Text:'{r.element.InnerText}' Overlaps:{overlaps}");
-                                                return overlaps;
-                                            })
-                                            .ToList();
-
-
-                                        StringBuilder highlightedText = new StringBuilder();
-
-                                        //Console.WriteLine($"=== About to process {matchedElements.Count} elements ===");
-                                        //Console.WriteLine($"relativeStart: {relativeStart}, relativeEnd: {relativeEnd}");
-
-                                        foreach (var elem in matchedElements)
-                                        {
-                                            //Console.WriteLine($"\nTrying to color - Type:{elem.element.LocalName} Range:{elem.start}-{elem.end} Text:'{elem.element.InnerText}' Parent:{elem.element.Parent?.LocalName}");
-
-                                            if (elem.element.LocalName == "t")
-                                            {
-                                                var run = GetParentRun(elem.element);
-                                                if (run != null)
-                                                {
-                                                    //Console.WriteLine($"Processing run: '{run.InnerText}'");
-                                                    int runStart = elem.start;
-                                                    int runEnd = elem.end;
-
-                                                    //Console.WriteLine($"Processing run: start={runStart}, end={runEnd}");
-                                                    if (relativeStart <= runStart && relativeEnd >= runEnd)
-                                                    {
-                                                        //Console.WriteLine("Applying full color");
-                                                        ApplyBackgroundColor(rates[i], run, null, null, highlightedText);
-                                                    }
-                                                    else
-                                                    {
-                                                        int start = Math.Max(relativeStart, runStart) - runStart;
-                                                        int end = Math.Min(relativeEnd + 1, runEnd) - runStart;
-                                                        //Console.WriteLine($"Applying partial color: start={start}, end={end}");
-                                                        ApplyBackgroundColor(rates[i], run, start, end, highlightedText);
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    //Console.WriteLine($"No parent Run found for text: '{elem.element.InnerText}'");
-                                                }
-                                            }
-                                            else if (elem.element is DocumentFormat.OpenXml.Math.OfficeMath math)
-                                            {
-                                                //Console.WriteLine($"### Applying Math Color");
-                                                ApplyBackgroundColor(rates[i], math, highlightedText);
-                                            }
-                                            else
-                                            {
-                                                //Console.WriteLine($"Other element: Type:{elem.element.LocalName} Range:{elem.start}-{elem.end}");
-                                            }
-                                        }
-
-                                        // 色付け結果の確認
-                                        string matchedText = SafeSubstring(fullDocText, result.beginIndex, result.endIndex - result.beginIndex + 1);
-                                        bool colorMatched = false;
-                                        if (isDebug) colorMatched = CompareStringsIgnoringWhitespace(highlightedText.ToString(), matchedText);
-                                        else colorMatched = RoughCompare(highlightedText.ToString(), matchedText);
-
-                                        if (!colorMatched)
-                                        {
-                                            sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
-                                            sb.AppendLine($"検索テキスト: {matchedText}");
-                                            sb.AppendLine($"色付け箇所: {highlightedText.ToString()}");
-                                        }
-                                        else if (isDebug && colorMatched)
-                                        {
-                                            sb.AppendLine("色付け箇所と検索テキストが一致しました。");
-                                            sb.AppendLine($"検索テキスト: {matchedText}");
-                                            sb.AppendLine($"色付け箇所: {highlightedText.ToString()}");
-                                        }
-                                    }
+                                    ProcessAffectedParagraphsAll(affectedParagraphs, result, rates[i], fullDocText, sb, isDebug);
                                 }
                             }
 
                             if (!foundInDocument)
                             {
-                                sb.AppendLine("エラー: 指定されたテキストが見つかりませんでした。");
-                                sb.AppendLine($"検索文: searchPatterns[{i}]{searchPatterns[i]}\n{pattern}");
+                                LogPatternNotFound(sb, i, searchPatterns, pattern);
                             }
                         }
                     }
@@ -197,6 +86,311 @@ namespace Arx.DocSearch.Util
                 sb.AppendLine($"スタックトレース: {ex.StackTrace}");
             }
             return sb.ToString();
+        }
+
+
+        /// <summary>
+        /// エラー情報をログに記録します
+        /// </summary>
+        private void LogError(StringBuilder sb, Exception ex)
+        {
+            sb.AppendLine($"エラーが発生しました: {ex.Message}");
+            sb.AppendLine($"スタックトレース: {ex.StackTrace}");
+        }/// <summary>
+         /// 検索パターンを準備します
+         /// </summary>
+        private string PrepareSearchPattern(string originalPattern, out string[] words)
+        {
+            string searchPattern = Regex.Replace(originalPattern, @"^[0-9]+\.?\s+", "");
+            //searchPattern = Regex.Replace(searchPattern, @"\s+[0-9]+\.?\s*$", "");
+            words = searchPattern.Split(' ');
+            return CreateSearchPattern(searchPattern);
+        }
+
+        /// <summary>
+        /// 見つかった場合のログ出力
+        /// </summary>
+        private void LogFoundPattern(bool isDebug, StringBuilder sb, int index, string[] searchPatterns, string pattern)
+        {
+            if (isDebug)
+            {
+                sb.AppendLine("エラー: 指定されたテキストが見つかりました。");
+                sb.AppendLine($"検索文:searchPatterns[{index}] {searchPatterns[index]}\n{pattern}");
+            }
+        }
+
+        /// <summary>
+        /// 見つからなかった場合のログ出力
+        /// </summary>
+        private void LogPatternNotFound(StringBuilder sb, int index, string[] searchPatterns, string pattern)
+        {
+            sb.AppendLine("エラー: 指定されたテキストが見つかりませんでした。");
+            sb.AppendLine($"検索文: searchPatterns[{index}]{searchPatterns[index]}\n{pattern}");
+        }
+
+        /// <summary>
+        /// 検索結果に影響を受けるパラグラフを特定します
+        /// </summary>
+        private List<(int start, int end, Paragraph paragraph)> FindAffectedParagraphs(
+            List<(int start, int end, Paragraph paragraph)> paragraphRanges,
+            (int beginIndex, int endIndex) result)
+        {
+            return paragraphRanges
+                .Where(p => DoRangesOverlap(result.beginIndex, result.endIndex, p.start, p.end))
+                .ToList();
+        }
+
+        /// <summary>
+        /// パラグラフをテキスト結合用に処理します
+        /// </summary>
+        private void ProcessParagraphForCombinedText(
+            Paragraph paragraph,
+            StringBuilder combinedDocText,
+            List<(int start, int end, Paragraph paragraph)> paragraphRanges,
+            ref int currentPosition)
+        {
+            var paragraphText = CreateCombinedText(paragraph);
+            if (!string.IsNullOrWhiteSpace(paragraphText))
+            {
+                paragraphRanges.Add((currentPosition, currentPosition + paragraphText.Length - 1, paragraph));
+                combinedDocText.Append(paragraphText);
+                currentPosition += paragraphText.Length;
+            }
+        }
+
+        /// <summary>
+        /// 影響を受けるパラグラフを処理します
+        /// </summary>
+        private void ProcessAffectedParagraph(
+            (int start, int end, Paragraph paragraph) paragraphRange,
+            (int beginIndex, int endIndex) result,
+            double rate,
+            string fullDocText,
+            StringBuilder sb,
+            bool isDebug)
+        {
+            var paragraph = paragraphRange.paragraph;
+            var combinedText = CreateCombinedText(paragraph);
+            var elementRanges = GetElementRanges(paragraph);
+            string displayText = GetDisplayText(elementRanges);
+
+            // パラグラフ内での相対位置を計算
+            int relativeStart = Math.Max(0, result.beginIndex - paragraphRange.start);
+            int relativeEnd = Math.Min(combinedText.Length - 1, result.endIndex - paragraphRange.start);
+            //Console.WriteLine($"Searching in range: {relativeStart}-{relativeEnd}");
+
+            AdjustRelativePositions(combinedText, displayText, ref relativeStart, ref relativeEnd);
+
+            var matchedElements = elementRanges
+                .Where(r =>
+                {
+                    bool overlaps = DoRangesOverlap(relativeStart, relativeEnd, r.start, r.end);
+                    //Console.WriteLine($"Search:{relativeStart}-{relativeEnd} Element:{r.start}-{r.end} Type:{r.element.LocalName} Text:'{r.element.InnerText}' Overlaps:{overlaps}");
+                    return overlaps;
+                })
+                .ToList();
+
+            StringBuilder highlightedText = new StringBuilder();
+
+            //Console.WriteLine($"=== About to process {matchedElements.Count} elements ===");
+            //Console.WriteLine($"relativeStart: {relativeStart}, relativeEnd: {relativeEnd}");
+
+            foreach (var elem in matchedElements)
+            {
+                ProcessMatchedElement(elem, relativeStart, relativeEnd, rate, highlightedText);
+            }
+
+            VerifyHighlightResult(fullDocText, result, highlightedText.ToString(), sb, isDebug);
+        }
+
+        /// <summary>
+        /// 相対位置を調整します
+        /// </summary>
+        private void AdjustRelativePositions(
+            string combinedText,
+            string displayText,
+            ref int relativeStart,
+            ref int relativeEnd)
+        {
+            string searchText = SafeSubstring(combinedText, relativeStart, relativeEnd);
+            string highlightText = SafeSubstring(displayText, relativeStart, relativeEnd);
+            int? offset = StringOffsetCalculator.CalculateOffset(highlightText, searchText);
+            if (offset.HasValue)
+            {
+                relativeStart += offset.Value;
+                relativeEnd += offset.Value;
+                //Console.WriteLine($"offset:{offset}:{offset.Value}:relativeStart:{relativeStart}\nsearchText:{searchText}\ndisplayText:{displayText}");
+            }
+        }
+
+        /// <summary>
+        /// 一致した要素を処理します
+        /// </summary>
+        private void ProcessMatchedElement(
+            (int start, int end, string displayText, OpenXmlElement element) elem,
+            int relativeStart,
+            int relativeEnd,
+            double rate,
+            StringBuilder highlightedText)
+        {
+            //Console.WriteLine($"\nTrying to color - Type:{elem.element.LocalName} Range:{elem.start}-{elem.end} Text:'{elem.element.InnerText}' Parent:{elem.element.Parent?.LocalName}");
+
+            if (elem.element.LocalName == "t")
+            {
+                ProcessTextElement(elem, relativeStart, relativeEnd, rate, highlightedText);
+            }
+            else if (elem.element is DocumentFormat.OpenXml.Math.OfficeMath math)
+            {
+                //Console.WriteLine($"### Applying Math Color");
+                ApplyBackgroundColor(rate, math, highlightedText);
+            }
+            else
+            {
+                //Console.WriteLine($"Other element: Type:{elem.element.LocalName} Range:{elem.start}-{elem.end}");
+            }
+        }
+
+        /// <summary>
+        /// テキスト要素を処理します
+        /// </summary>
+        private void ProcessTextElement(
+            (int start, int end, string displayText, OpenXmlElement element) elem,
+            int relativeStart,
+            int relativeEnd,
+            double rate,
+            StringBuilder highlightedText)
+        {
+            var run = GetParentRun(elem.element);
+            if (run == null)
+            {
+                //Console.WriteLine($"No parent Run found for text: '{elem.element.InnerText}'");
+                return;
+            }
+
+            //Console.WriteLine($"Processing run: '{run.InnerText}'");
+            int runStart = elem.start;
+            int runEnd = elem.end;
+
+            //Console.WriteLine($"Processing run: start={runStart}, end={runEnd}");
+            if (relativeStart <= runStart && relativeEnd >= runEnd)
+            {
+                //Console.WriteLine("Applying full color");
+                ApplyBackgroundColor(rate, run, null, null, highlightedText);
+            }
+            else
+            {
+                int start = Math.Max(relativeStart, runStart) - runStart;
+                int end = Math.Min(relativeEnd + 1, runEnd) - runStart;
+                //Console.WriteLine($"Applying partial color: start={start}, end={end}");
+                ApplyBackgroundColor(rate, run, start, end, highlightedText);
+            }
+        }
+
+        /// <summary>
+        /// ハイライト結果を検証します
+        /// </summary>
+        private void VerifyHighlightResult(
+            string fullDocText,
+            (int beginIndex, int endIndex) result,
+            string highlightedText,
+            StringBuilder sb,
+            bool isDebug)
+        {
+            string matchedText = SafeSubstring(fullDocText, result.beginIndex, result.endIndex - result.beginIndex + 1);
+            bool colorMatched = false;
+            if (isDebug) colorMatched = CompareStringsIgnoringWhitespace(highlightedText, matchedText);
+            else colorMatched = RoughCompare(highlightedText, matchedText);
+
+            if (!colorMatched)
+            {
+                sb.AppendLine("警告: 色付け箇所と検索テキストが異なります。");
+                sb.AppendLine($"検索テキスト: {matchedText}");
+                sb.AppendLine($"色付け箇所: {highlightedText}");
+            }
+            else if (isDebug && colorMatched)
+            {
+                sb.AppendLine("色付け箇所と検索テキストが一致しました。");
+                sb.AppendLine($"検索テキスト: {matchedText}");
+                sb.AppendLine($"色付け箇所: {highlightedText}");
+            }
+        }
+
+        // 新しく追加するメソッド
+        private void ProcessAffectedParagraphsAll(
+            List<(int start, int end, Paragraph paragraph)> paragraphRanges,
+            (int beginIndex, int endIndex) result,
+            double rate,
+            string fullDocText,
+            StringBuilder sb,
+            bool isDebug)
+        {
+            // 複数パラグラフを一括処理するための新しいメソッドを呼び出す
+            string combinedText = CreateCombinedTextAll(paragraphRanges);
+            var allElementRanges = GetElementRangesAll(paragraphRanges);
+            string displayText = GetDisplayText(allElementRanges);
+
+            // 検索範囲全体の相対位置を計算
+            int relativeStart = result.beginIndex - paragraphRanges[0].start;
+            int relativeEnd = result.endIndex - paragraphRanges[0].start;
+            //Console.WriteLine($"Searching in range: {relativeStart}-{relativeEnd}");
+
+            AdjustRelativePositions(combinedText, displayText, ref relativeStart, ref relativeEnd);
+
+            var matchedElements = allElementRanges
+                .Where(r =>
+                {
+                    bool overlaps = DoRangesOverlap(relativeStart, relativeEnd, r.start, r.end);
+                    //Console.WriteLine($"Search:{relativeStart}-{relativeEnd} Element:{r.start}-{r.end} Type:{r.element.LocalName} Text:'{r.element.InnerText}' Overlaps:{overlaps}");
+                    return overlaps;
+                })
+                .ToList();
+
+            StringBuilder highlightedText = new StringBuilder();
+            //Console.WriteLine($"=== About to process {matchedElements.Count} elements ===");
+            //Console.WriteLine($"relativeStart: {relativeStart}, relativeEnd: {relativeEnd}");
+
+            foreach (var elem in matchedElements)
+            {
+                ProcessMatchedElement(elem, relativeStart, relativeEnd, rate, highlightedText);
+            }
+
+            VerifyHighlightResult(fullDocText, result, highlightedText.ToString(), sb, isDebug);
+        }
+
+        // 複数パラグラフのテキストを連結して返す新しいメソッド
+        private string CreateCombinedTextAll(List<(int start, int end, Paragraph paragraph)> paragraphRanges)
+        {
+            StringBuilder combinedTextBuilder = new StringBuilder();
+            foreach (var range in paragraphRanges)
+            {
+                string paragraphText = CreateCombinedText(range.paragraph);
+                combinedTextBuilder.Append(paragraphText);
+            }
+            return combinedTextBuilder.ToString();
+        }
+
+        // 複数パラグラフの要素範囲をまとめて取得する新しいメソッド
+        private List<(int start, int end, string displayText, OpenXmlElement element)> GetElementRangesAll(List<(int start, int end, Paragraph paragraph)> paragraphRanges)
+        {
+            List<(int start, int end, string displayText, OpenXmlElement element)> allElementRanges = new List<(int start, int end, string displayText, OpenXmlElement element)>();
+            int currentPosition = 0;
+
+            foreach (var range in paragraphRanges)
+            {
+                var elementRanges = GetElementRanges(range.paragraph);
+                foreach (var elem in elementRanges)
+                {
+                    allElementRanges.Add((
+                        elem.start + currentPosition,
+                        elem.end + currentPosition,
+                        elem.displayText,
+                        elem.element
+                    ));
+                }
+                currentPosition += CreateCombinedText(range.paragraph).Length;
+            }
+
+            return allElementRanges;
         }
 
         private void ApplyBackgroundColor(double rate, DocumentFormat.OpenXml.Math.OfficeMath mathElement, StringBuilder highlightedText = null)
@@ -472,12 +666,8 @@ namespace Arx.DocSearch.Util
         {
             // 正規表現を使用して全ての種類の空白を削除
             string pattern = @"\s+";
-            string str1WithoutWhitespace = SpecialCharConverter.ReplaceMathSymbols(str1);
-            string str2WithoutWhitespace = SpecialCharConverter.ReplaceMathSymbols(str2);
-            str1WithoutWhitespace = SpecialCharConverter.ReplaceLine(str1WithoutWhitespace ?? "");
-            str2WithoutWhitespace = SpecialCharConverter.ReplaceLine(str2WithoutWhitespace ?? "");
-            str1WithoutWhitespace = SpecialCharConverter.RemoveSymbols(str1WithoutWhitespace ?? "");
-            str2WithoutWhitespace = SpecialCharConverter.RemoveSymbols(str2WithoutWhitespace ?? "");
+            string str1WithoutWhitespace = SpecialCharConverter.RemoveSymbolsAll(str1);
+            string str2WithoutWhitespace = SpecialCharConverter.RemoveSymbolsAll(str2);
             str1WithoutWhitespace = Regex.Replace(str1WithoutWhitespace, pattern, "");
             str2WithoutWhitespace = Regex.Replace(str2WithoutWhitespace, pattern, "");
 
@@ -872,12 +1062,34 @@ namespace Arx.DocSearch.Util
             {
                 if (!child.HasChildren)
                 {
-                    string text = child.InnerText;
+                    string text;
+                    string originalText = child.InnerText; // 元のテキストを保持
+                    int originalLength = originalText.Length; // 元の長さを保持
+
+                    // 特殊文字を考慮したテキスト変換
+                    if (child is Run run)
+                    {
+                        text = SpecialCharConverter.ConvertSpecialCharactersInRun(run);
+                    }
+                    else
+                    {
+                        // 他の要素（Text含む）はInnerTextを使用し、必要に応じて変換
+                        text = originalText;
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            // ギリシャ文字など特殊文字を含む可能性がある場合は変換
+                            if (text.Any(c => SpecialCharConverter.IsSpecialChar(c)))
+                            {
+                                text = SpecialCharConverter.ConvertMathText(text);
+                            }
+                        }
+                    }
+
                     if (!string.IsNullOrEmpty(text))
                     {
-                        ranges.Add((currentPosition, currentPosition + text.Length - 1, text, child));
+                        ranges.Add((currentPosition, currentPosition + originalLength - 1, text, child));
                         //Console.WriteLine($"Current[{currentPosition}]: '{text}'");
-                        currentPosition += text.Length;
+                        currentPosition += originalLength; // 元の長さで位置を更新
                     }
                 }
                 else
@@ -890,11 +1102,9 @@ namespace Arx.DocSearch.Util
                         string mathText = SpecialCharConverter.ExtractFromMathElement(child, 0);
                         if (!string.IsNullOrEmpty(mathText))
                         {
-                            //Console.WriteLine($"Math[{child.LocalName}][{currentPosition}]: '{mathText}'");
-                            //int diff = mathText.Length - child.InnerText.Length;
-                            //currentPosition += diff;
-                            ranges.Add((currentPosition, currentPosition + mathText.Length - 1, mathText, child));
-                            currentPosition += mathText.Length;
+                            int originalLength = child.InnerText.Length; // 元の数式要素の長さ
+                            ranges.Add((currentPosition, currentPosition + originalLength - 1, mathText, child));
+                            currentPosition += originalLength; // 元の長さで位置を更新
                         }
                     }
                     else if (child.LocalName == "smartTag")
@@ -953,31 +1163,82 @@ namespace Arx.DocSearch.Util
 
         public bool RoughCompare(string FirstString, string SecondString)
         {
-            // 文字列を半角スペースで分割
-            string[] firstWords = FirstString.Split(' ');
-            string[] secondWords = SecondString.Split(' ');
+            string str1 = SpecialCharConverter.RemoveSymbolsAll(FirstString);
+            string str2 = SpecialCharConverter.RemoveSymbolsAll(SecondString);
+            if (null == str1 || null == str2) return false;
 
-            int matchCount = 0;
-            int currentSecondIndex = 0;
+            // 文字列を半角スペースで分割し、空の単語を除去
+            string[] firstWords = str1.Split(' ').Where(w => !string.IsNullOrEmpty(w)).ToArray();
+            string[] secondWords = str2.Split(' ').Where(w => !string.IsNullOrEmpty(w)).ToArray();
 
-            // FirstStringの各単語について
-            foreach (string firstWord in firstWords)
+            if (firstWords.Length == 0) return secondWords.Length == 0;
+
+            // 動的計画法による最長共通部分列(LCS)を求める
+            int[,] dp = new int[firstWords.Length + 1, secondWords.Length + 1];
+            bool[,] matched = new bool[firstWords.Length + 1, secondWords.Length + 1];
+
+            for (int i = 1; i <= firstWords.Length; i++)
             {
-                // SecondStringの現在位置から探索を開始
-                for (int i = currentSecondIndex; i < secondWords.Length; i++)
+                for (int j = 1; j <= secondWords.Length; j++)
                 {
-                    if (firstWord == secondWords[i])
+                    // 前方一致の判定
+                    bool isMatch = firstWords[i - 1].StartsWith(secondWords[j - 1]) ||
+                                   secondWords[j - 1].StartsWith(firstWords[i - 1]);
+
+                    if (isMatch)
                     {
-                        // 一致した場合
-                        matchCount++;
-                        currentSecondIndex = i + 1; // 次の探索開始位置を更新
-                        break;
+                        dp[i, j] = dp[i - 1, j - 1] + 1;
+                        matched[i, j] = true;
+                    }
+                    else
+                    {
+                        if (dp[i - 1, j] > dp[i, j - 1])
+                        {
+                            dp[i, j] = dp[i - 1, j];
+                            matched[i, j] = false;
+                        }
+                        else
+                        {
+                            dp[i, j] = dp[i, j - 1];
+                            matched[i, j] = false;
+                        }
                     }
                 }
             }
 
-            // 一致率を計算して0.8以上ならtrue
-            double matchRate = (double)matchCount / firstWords.Length;
+            // 一致した単語を追跡して確認
+            List<string> matchedWords = new List<string>();
+            int x = firstWords.Length;
+            int y = secondWords.Length;
+
+            while (x > 0 && y > 0)
+            {
+                if (matched[x, y])
+                {
+                    matchedWords.Add(firstWords[x - 1]);
+                    x--; y--;
+                }
+                else if (dp[x - 1, y] > dp[x, y - 1])
+                {
+                    x--;
+                }
+                else
+                {
+                    y--;
+                }
+            }
+
+            // 一致率を計算
+            double matchRate = (double)matchedWords.Count / firstWords.Length;
+
+            // デバッグ情報（実際の使用時には削除またはログに記録）
+            /* 
+            Console.WriteLine($"First words: {string.Join(", ", firstWords)}");
+            Console.WriteLine($"Second words: {string.Join(", ", secondWords)}");
+            Console.WriteLine($"Matched words: {string.Join(", ", matchedWords)}");
+            Console.WriteLine($"Match rate: {matchRate} ({matchedWords.Count}/{firstWords.Length})");
+            */
+
             return matchRate >= 0.8;
         }
     }
