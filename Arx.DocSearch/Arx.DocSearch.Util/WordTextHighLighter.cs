@@ -328,6 +328,8 @@ namespace Arx.DocSearch.Util
             string combinedText = CreateCombinedTextAll(paragraphRanges);
             var allElementRanges = GetElementRangesAll(paragraphRanges);
             string displayText = GetDisplayText(allElementRanges);
+            //Console.WriteLine($"combinedText: {combinedText}");
+            //Console.WriteLine($"GetDisplayText: {displayText}");
 
             // 検索範囲全体の相対位置を計算
             int relativeStart = result.beginIndex - paragraphRanges[0].start;
@@ -1060,6 +1062,26 @@ namespace Arx.DocSearch.Util
         {
             foreach (var child in element.Elements())
             {
+                // 位置情報要素やテーブルキャプション関連要素はスキップ
+                if (child.LocalName == "posOffset" ||
+                    child.LocalName == "positionH" ||
+                    child.LocalName == "positionV" ||
+                    child.LocalName == "align" ||
+                    child.LocalName == "extent" ||
+                    child.LocalName == "effectExtent" ||
+                    child.LocalName == "docPr" ||
+                    // 描画要素とテーブルキャプションを含む場合
+                    (child.LocalName == "drawing" && child.InnerXml != null && child.InnerXml.Contains("Table")) ||
+                    (child.LocalName == "anchor" && child.InnerText.Contains("Table")) ||
+                    // テキストボックスでテーブルキャプションを含む場合
+                    ((child.LocalName == "txbxContent" ||
+                      child.LocalName == "txbx" ||
+                      child.LocalName == "wsp") &&
+                     child.InnerText.Contains("Table")))
+                {
+                    continue;
+                }
+
                 if (!child.HasChildren)
                 {
                     string text;
