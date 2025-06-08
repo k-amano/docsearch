@@ -88,7 +88,7 @@ namespace Arx.DocSearch.Util
             return sb.ToString();
         }
 
-
+        /*
         /// <summary>
         /// エラー情報をログに記録します
         /// </summary>
@@ -96,9 +96,12 @@ namespace Arx.DocSearch.Util
         {
             sb.AppendLine($"エラーが発生しました: {ex.Message}");
             sb.AppendLine($"スタックトレース: {ex.StackTrace}");
-        }/// <summary>
-         /// 検索パターンを準備します
-         /// </summary>
+        }
+        */
+
+        /// <summary>
+        /// 検索パターンを準備します
+        /// </summary>
         private string PrepareSearchPattern(string originalPattern, out string[] words)
         {
             string searchPattern = Regex.Replace(originalPattern, @"^[0-9]+\.?\s+", "");
@@ -158,6 +161,7 @@ namespace Arx.DocSearch.Util
             }
         }
 
+        /*
         /// <summary>
         /// 影響を受けるパラグラフを処理します
         /// </summary>
@@ -202,26 +206,262 @@ namespace Arx.DocSearch.Util
 
             VerifyHighlightResult(fullDocText, result, highlightedText.ToString(), sb, isDebug);
         }
+        */
 
         /// <summary>
         /// 相対位置を調整します
         /// </summary>
-        private void AdjustRelativePositions(
+        /*private void AdjustRelativePositions(
             string combinedText,
             string displayText,
             ref int relativeStart,
             ref int relativeEnd)
         {
             string searchText = SafeSubstring(combinedText, relativeStart, relativeEnd);
+            //^(任意の文字列) と _(任意の文字列) パターンを除去する
+            //ssup: 上付き"^()", ssub: 下付き"_()" が位置計算の誤差になることを考慮する
+            searchText = Regex.Replace(Regex.Replace(searchText, @"\^\(([^()]*)\)", "$1"), @"_\(([^()]*)\)", "$1");
             string highlightText = SafeSubstring(displayText, relativeStart, relativeEnd);
             int? offset = StringOffsetCalculator.CalculateOffset(highlightText, searchText);
             if (offset.HasValue)
             {
                 relativeStart += offset.Value;
                 relativeEnd += offset.Value;
-                //Console.WriteLine($"offset:{offset}:{offset.Value}:relativeStart:{relativeStart}\nsearchText:{searchText}\ndisplayText:{displayText}");
+                Console.WriteLine($"offset:{offset}:{offset.Value}:relativeStart:{relativeStart}\nsearchText:{searchText}\nhighlightText:{highlightText}\ndisplayText:{displayText}");
             }
+        }*/
+
+        private void AdjustRelativePositions(
+            string combinedText,
+            string displayText,
+            ref int relativeStart,
+            ref int relativeEnd)
+        {
+            displayText = SpecialCharConverter.ReplaceLine(displayText);
+            // デバッグ情報の詳細出力
+            StringBuilder debugInfo = new StringBuilder();
+            //Console.WriteLine($"=== AdjustRelativePositions デバッグ情報 ===");
+            //Console.WriteLine($"Original positions: relativeStart:{relativeStart}, relativeEnd:{relativeEnd}");
+
+            // combinedTextとdisplayTextの概要を出力
+            //Console.WriteLine($"combinedText長さ: {combinedText.Length}, displayText長さ: {displayText.Length}");
+            //Console.WriteLine($"combinedText先頭50文字: {SafeSubstring(combinedText, 0, 50)}");
+            //Console.WriteLine($"displayText先頭50文字: {SafeSubstring(displayText, 0, 50)}");
+
+            // 検索開始位置前後のテキスト確認
+            //Console.WriteLine($"relativeStart前後の文字: {SafeSubstring(combinedText, Math.Max(0, relativeStart - 20), 40)}");
+
+            // 検索開始位置までの余分な文字数をカウント（デバッグ情報付き）
+            int extraCharsBefore = CountExtraCharsBeforeWithDebug(combinedText, displayText, relativeStart, debugInfo);
+
+            // 検索範囲内の余分な文字数をカウント（デバッグ情報付き）
+            int extraCharsInRange = CountExtraCharsInRangeWithDebug(combinedText, displayText, relativeStart, relativeEnd, debugInfo);
+
+            // 位置を補正
+            int originalStart = relativeStart;
+            int originalEnd = relativeEnd;
+            relativeStart -= extraCharsBefore;
+            relativeEnd -= (extraCharsBefore + extraCharsInRange);
+
+            // 範囲が有効になるよう調整
+            relativeStart = Math.Max(0, relativeStart);
+            relativeEnd = Math.Max(relativeStart, relativeEnd);
+
+            // 補正結果の確認
+            //Console.WriteLine($"位置補正: {originalStart}-{originalEnd} -> {relativeStart}-{relativeEnd}");
+            //Console.WriteLine($"Extra chars before start: {extraCharsBefore}, within range: {extraCharsInRange}");
+            //Console.WriteLine($"補正後の範囲のテキスト: {SafeSubstring(displayText, relativeStart, relativeEnd - relativeStart + 1)}");
+
+            // デバッグ情報をファイルに出力（必要に応じて）
+            //string debugLogPath = Path.Combine(Path.GetDirectoryName(Path.GetTempPath()), "position_adjust_debug.log");
+            //File.AppendAllText(debugLogPath, debugInfo.ToString());
+
+            // コンソールにも出力
+            //Console.WriteLine(debugInfo.ToString());
+            //Console.WriteLine($"Original positions: relativeStart:{originalStart}, relativeEnd:{originalEnd}");
+            //Console.WriteLine($"Extra chars before start: {extraCharsBefore}, within range: {extraCharsInRange}");
+            //Console.WriteLine($"Adjusted positions: relativeStart:{relativeStart}, relativeEnd:{relativeEnd}");
         }
+
+        // 検索開始位置までの余分な文字数をカウント（デバッグ情報付き）
+        private int CountExtraCharsBeforeWithDebug(string combinedText, string displayText, int position, StringBuilder debugInfo)
+        {
+            List<(int position, char character)> extraCharList = new List<(int, char)>();
+            int extraChars = 0;        // 余分な文字数
+            int combinedPos = 0;       // combinedTextの位置
+            int displayPos = 0;        // displayTextの位置
+
+            //Console.WriteLine($"\n== 検索開始位置({position})までの余分な文字カウント ==");
+
+            // combinedTextの指定位置まで1文字ずつ比較
+            while (combinedPos < position && displayPos < displayText.Length)
+            {
+                // 現在比較している文字をデバッグ出力
+                if (combinedPos % 50 == 0)
+                {
+                    //Console.WriteLine($"位置 {combinedPos}/{position}: combinedText='{SafeSubstring(combinedText, combinedPos, 10)}...' displayText='{SafeSubstring(displayText, displayPos, 10)}...'");
+                }
+
+                // 現在の文字が一致する場合
+                if (combinedText[combinedPos] == displayText[displayPos])
+                {
+                    // 両方のインデックスを進める
+                    combinedPos++;
+                    displayPos++;
+                }
+                else
+                {
+                    // 余分な文字の詳細をデバッグ出力
+                    //Console.WriteLine($"余分な文字検出: 位置={combinedPos}, 文字='{combinedText[combinedPos]}', コード={((int)combinedText[combinedPos]).ToString("X4")}");
+
+                    // リストに余分な文字を追加
+                    extraCharList.Add((combinedPos, combinedText[combinedPos]));
+
+                    // combinedTextの文字がdisplayTextに存在しない → 余分な文字
+                    extraChars++;
+                    combinedPos++;
+                }
+            }
+
+            // 検出された余分な文字の一覧をデバッグ出力
+            /*Console.WriteLine($"\n検出された余分な文字一覧（計: {extraChars}個）:");
+            for (int i = 0; i < extraCharList.Count; i++)
+            {
+                Console.WriteLine($"{i + 1}. 位置: {extraCharList[i].position}, 文字: '{extraCharList[i].character}', コード: {((int)extraCharList[i].character).ToString("X4")}");
+            }
+
+            // combinedTextの位置がpositionに達していない場合（displayTextが先に終わった場合）
+            if (combinedPos < position)
+            {
+                int remainingChars = position - combinedPos;
+                Console.WriteLine($"displayTextが終了したため、残り {remainingChars} 文字も余分な文字としてカウント");
+                extraChars += remainingChars;
+            }
+
+            Console.WriteLine($"検索開始位置までの余分な文字数: {extraChars}");*/
+            return extraChars;
+        }
+
+        // 検索範囲内の余分な文字数をカウント（デバッグ情報付き）
+        private int CountExtraCharsInRangeWithDebug(string combinedText, string displayText, int startPos, int endPos, StringBuilder debugInfo)
+        {
+            List<(int position, char character)> extraCharList = new List<(int, char)>();
+
+            // startPosに対応するdisplayTextの位置を特定
+            int displayStartPos = 0;
+            int combinedPos = 0;
+
+            //Console.WriteLine($"\n== startPos({startPos})に対応するdisplayTextの位置を特定 ==");
+
+            // combinedTextのstartPosまでの対応するdisplayTextの位置を特定
+            while (combinedPos < startPos && displayStartPos < displayText.Length)
+            {
+                /*if (combinedPos % 50 == 0)
+                {
+                    Console.WriteLine($"位置 {combinedPos}/{startPos}: combinedText='{SafeSubstring(combinedText, combinedPos, 10)}...' displayText='{SafeSubstring(displayText, displayStartPos, 10)}...'");
+                }*/
+
+                if (combinedText[combinedPos] == displayText[displayStartPos])
+                {
+                    combinedPos++;
+                    displayStartPos++;
+                }
+                else
+                {
+                    // combinedTextの文字がdisplayTextにない → 余分な文字
+                    combinedPos++;
+                }
+            }
+
+            //Console.WriteLine($"combinedTextの位置 {startPos} は displayTextの位置 {displayStartPos} に対応");
+
+            // 範囲内の余分な文字をカウント
+            int extraChars = 0;
+            combinedPos = startPos;
+            int displayPos = displayStartPos;
+
+            //Console.WriteLine($"\n== 検索範囲内({startPos}-{endPos})の余分な文字カウント ==");
+
+            while (combinedPos <= endPos && displayPos < displayText.Length)
+            {
+                /*if ((combinedPos - startPos) % 50 == 0)
+                {
+                    Console.WriteLine($"位置 {combinedPos}/{endPos}: combinedText='{SafeSubstring(combinedText, combinedPos, 10)}...' displayText='{SafeSubstring(displayText, displayPos, 10)}...'");
+                }*/
+
+                if (combinedText[combinedPos] == displayText[displayPos])
+                {
+                    combinedPos++;
+                    displayPos++;
+                }
+                else
+                {
+                    // 余分な文字の詳細をデバッグ出力
+                    //Console.WriteLine($"余分な文字検出: 位置={combinedPos}, 文字='{combinedText[combinedPos]}', コード={((int)combinedText[combinedPos]).ToString("X4")}");
+
+                    // リストに余分な文字を追加
+                    extraCharList.Add((combinedPos, combinedText[combinedPos]));
+
+                    // combinedTextの文字がdisplayTextにない → 余分な文字
+                    extraChars++;
+                    combinedPos++;
+                }
+            }
+
+            // 検出された余分な文字の一覧をデバッグ出力
+            /*Console.WriteLine($"\n検索範囲内の余分な文字一覧（計: {extraChars}個）:");
+            for (int i = 0; i < extraCharList.Count; i++)
+            {
+                Console.WriteLine($"{i + 1}. 位置: {extraCharList[i].position}, 文字: '{extraCharList[i].character}', コード: {((int)extraCharList[i].character).ToString("X4")}");
+            }
+
+            // 範囲の最後までカウントできなかった場合（displayTextが先に終わった場合）
+            if (combinedPos <= endPos)
+            {
+                int remainingChars = endPos - combinedPos + 1;
+                Console.WriteLine($"displayTextが終了したため、残り {remainingChars} 文字も余分な文字としてカウント");
+                extraChars += remainingChars;
+            }
+
+            Console.WriteLine($"検索範囲内の余分な文字数: {extraChars}");*/
+            return extraChars;
+        }
+
+        // combinedText と displayText の内容を詳細表示するデバッグメソッド
+        /*private void DebugTextContents(string combinedText, string displayText)
+        {
+            Console.WriteLine("===== combinedText と displayText の詳細比較 =====");
+
+            // 両方のテキストの長さを表示
+            Console.WriteLine($"combinedText長さ: {combinedText.Length}");
+            Console.WriteLine($"displayText長さ: {displayText.Length}");
+
+            // 内容を50文字ずつ表示
+            int maxLen = Math.Max(combinedText.Length, displayText.Length);
+            for (int i = 0; i < maxLen; i += 50)
+            {
+                string combinedSegment = SafeSubstring(combinedText, i, 50);
+                string displaySegment = SafeSubstring(displayText, i, 50);
+
+                Console.WriteLine($"\n=== 位置 {i} から {i + 49} ===");
+                Console.WriteLine($"combinedText: \"{combinedSegment}\"");
+                Console.WriteLine($"displayText:  \"{displaySegment}\"");
+
+                // 文字ごとの比較結果を表示
+                Console.WriteLine("文字ごとの比較:");
+                for (int j = 0; j < 50 && i + j < maxLen; j++)
+                {
+                    char combinedChar = i + j < combinedText.Length ? combinedText[i + j] : ' ';
+                    char displayChar = i + j < displayText.Length ? displayText[i + j] : ' ';
+                    bool isSame = combinedChar == displayChar;
+
+                    Console.WriteLine($"位置 {i + j}: combinedText[{(int)combinedChar:X4}]='{combinedChar}' " +
+                                     $"displayText[{(int)displayChar:X4}]='{displayChar}' " +
+                                     $"一致: {isSame}");
+                }
+            }
+        }*/
+
 
         /// <summary>
         /// 一致した要素を処理します
@@ -280,8 +520,19 @@ namespace Arx.DocSearch.Util
             else
             {
                 int start = Math.Max(relativeStart, runStart) - runStart;
-                int end = Math.Min(relativeEnd + 1, runEnd) - runStart;
-                //Console.WriteLine($"Applying partial color: start={start}, end={end}");
+                // 修正：確実に要素の終端までカバーするよう計算
+                int end;
+                if (relativeEnd >= runEnd)  // 検索範囲の終端が要素の終端以上の場合
+                {
+                    // 要素の全長を使用
+                    end = runEnd - runStart + 1;
+                }
+                else
+                {
+                    // 通常のケース：一文字余計に色付けしないための調整
+                    end = Math.Min(relativeEnd + 1, runEnd) - runStart;
+                }
+                //Console.WriteLine($"Applying partial color: start={start}, end={end}, relativeEnd={relativeEnd}, runEnd={runEnd}");
                 ApplyBackgroundColor(rate, run, start, end, highlightedText);
             }
         }
@@ -1106,6 +1357,8 @@ namespace Arx.DocSearch.Util
                             }
                         }
                     }
+                    text = originalText;
+
 
                     if (!string.IsNullOrEmpty(text))
                     {
@@ -1121,10 +1374,13 @@ namespace Arx.DocSearch.Util
                         child.Parent?.LocalName != "oMath" &&
                         child.LocalName == "oMath")
                     {
-                        string mathText = SpecialCharConverter.ExtractFromMathElement(child, 0);
+                        //string mathText = SpecialCharConverter.ExtractFromMathElement(child, 0);
+                        //数式を変換すると文字列の長さの誤差が出るのでInnerTextをそのまま使用する
+                        string mathText = child.InnerText;
                         if (!string.IsNullOrEmpty(mathText))
                         {
                             int originalLength = child.InnerText.Length; // 元の数式要素の長さ
+                                                                         //ranges.Add((currentPosition, currentPosition + originalLength - 1, mathText, child));
                             ranges.Add((currentPosition, currentPosition + originalLength - 1, mathText, child));
                             currentPosition += originalLength; // 元の長さで位置を更新
                         }
