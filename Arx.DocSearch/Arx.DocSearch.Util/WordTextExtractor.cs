@@ -9,104 +9,104 @@ using System;
 
 namespace Arx.DocSearch.Util
 {
-	public class WordTextExtractor
-	{
-		public WordTextExtractor(string filePath, bool isSingleLine = true, bool reducesBlankSpaces = true, Action<string> debugLogger = null)
-		{
-			IsSingleLine = isSingleLine;
-			ReducesBlankSpaces = reducesBlankSpaces;
-			DebugLogger = debugLogger ?? (_ => { }); // デフォルトは何もしない
+    public class WordTextExtractor
+    {
+        public WordTextExtractor(string filePath, bool isSingleLine = true, bool reducesBlankSpaces = true, Action<string> debugLogger = null)
+        {
+            IsSingleLine = isSingleLine;
+            ReducesBlankSpaces = reducesBlankSpaces;
+            DebugLogger = debugLogger ?? (_ => { }); // デフォルトは何もしない
 
-			ExtractText(filePath);
-		}
-		private Action<string> DebugLogger { get; set; }
+            ExtractText(filePath);
+        }
+        private Action<string> DebugLogger { get; set; }
 
-		private static StringBuilder extractedText = new StringBuilder();
-		private bool EnableDebugOutput { get; set; }
-		public bool IsSingleLine { get; set; }
-		public bool ReducesBlankSpaces { get; set; }
+        private static StringBuilder extractedText = new StringBuilder();
+        private bool EnableDebugOutput { get; set; }
+        public bool IsSingleLine { get; set; }
+        public bool ReducesBlankSpaces { get; set; }
 
-		public List<string> ParagraphTexts { get; private set; }
+        public List<string> ParagraphTexts { get; private set; }
 
-		public string Text
-		{
-			get { return CombineText(ParagraphTexts); }
-		}
+        public string Text
+        {
+            get { return CombineText(ParagraphTexts); }
+        }
 
-		private void ExtractText(string filePath)
-		{
-			ParagraphTexts = new List<string>();
+        private void ExtractText(string filePath)
+        {
+            ParagraphTexts = new List<string>();
 
-			using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, false))
-			{
-				var body = doc.MainDocumentPart.Document.Body;
-				if (body != null)
-				{
-					var paragraphs = body.Descendants<Paragraph>().ToList();
-					foreach (var paragraph in paragraphs)
-					{
-						string paragraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
-						paragraphText = SpecialCharConverter.ReplaceLine(paragraphText);
-						ParagraphTexts.Add(paragraphText);
-					}
-				}
-			}
-		}
+            using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, false))
+            {
+                var body = doc.MainDocumentPart.Document.Body;
+                if (body != null)
+                {
+                    var paragraphs = body.Descendants<Paragraph>().ToList();
+                    foreach (var paragraph in paragraphs)
+                    {
+                        string paragraphText = SpecialCharConverter.ConvertSpecialCharactersInParagraph(paragraph);
+                        paragraphText = SpecialCharConverter.ReplaceLine(paragraphText);
+                        ParagraphTexts.Add(paragraphText);
+                    }
+                }
+            }
+        }
 
-		private string CleanupText(string text)
-		{
-			// 余分な空白の削除（ただし、ハイフンの前後の空白は保持）
-			text = Regex.Replace(text, @"(?<!\s-)[^\S\n\r]+(?!-\s)", " ");
-			// 行頭と行末の空白を削除
-			text = Regex.Replace(text, @"^\s+|\s+$", "", RegexOptions.Multiline);
-			// 連続する改行を1つにまとめる
-			text = Regex.Replace(text, @"\n+", "\n");
-			// 段落番号の後に余分な数字がある場合、それを削除（ただし先頭の0は保持）
-			return text;
-		}
+        private string CleanupText(string text)
+        {
+            // 余分な空白の削除（ただし、ハイフンの前後の空白は保持）
+            text = Regex.Replace(text, @"(?<!\s-)[^\S\n\r]+(?!-\s)", " ");
+            // 行頭と行末の空白を削除
+            text = Regex.Replace(text, @"^\s+|\s+$", "", RegexOptions.Multiline);
+            // 連続する改行を1つにまとめる
+            text = Regex.Replace(text, @"\n+", "\n");
+            // 段落番号の後に余分な数字がある場合、それを削除（ただし先頭の0は保持）
+            return text;
+        }
 
-		private string CombineText(List<string> paragraphs)
-		{
-			StringBuilder combinedText = new StringBuilder();
+        private string CombineText(List<string> paragraphs)
+        {
+            StringBuilder combinedText = new StringBuilder();
 
-			foreach (var paragraph in paragraphs)
-			{
-				if (!string.IsNullOrEmpty(paragraph))
-				{
-					if (combinedText.Length > 0)
-					{
-						if (!IsSingleLine) combinedText.Append(Environment.NewLine);
-					}
-					combinedText.Append(paragraph);
-				}
-			}
+            foreach (var paragraph in paragraphs)
+            {
+                if (!string.IsNullOrEmpty(paragraph))
+                {
+                    if (combinedText.Length > 0)
+                    {
+                        if (!IsSingleLine) combinedText.Append(Environment.NewLine);
+                    }
+                    combinedText.Append(paragraph);
+                }
+            }
 
-			string result = combinedText.ToString();
+            string result = combinedText.ToString();
 
-			if (ReducesBlankSpaces)
-			{
-				result = CleanupText(result);
-			}
+            if (ReducesBlankSpaces)
+            {
+                result = CleanupText(result);
+            }
 
-			return result;
-		}
+            return result;
+        }
 
-		// 設定を変更するメソッド
-		public void UpdateSettings(bool isSingleLine, bool reducesBlankSpaces)
-		{
-			IsSingleLine = isSingleLine;
-			ReducesBlankSpaces = reducesBlankSpaces;
-		}
+        // 設定を変更するメソッド
+        public void UpdateSettings(bool isSingleLine, bool reducesBlankSpaces)
+        {
+            IsSingleLine = isSingleLine;
+            ReducesBlankSpaces = reducesBlankSpaces;
+        }
 
-		private void DebugOutput(string message, int depth)
-		{
-			DebugLogger($"{new string(' ', depth * 2)}{message}");
-		}
+        private void DebugOutput(string message, int depth)
+        {
+            DebugLogger($"{new string(' ', depth * 2)}{message}");
+        }
 
-		public void SetDebugLogger(Action<string> debugLogger)
-		{
-			DebugLogger = debugLogger ?? (_ => { });
-		}
+        public void SetDebugLogger(Action<string> debugLogger)
+        {
+            DebugLogger = debugLogger ?? (_ => { });
+        }
 
-	}
+    }
 }
